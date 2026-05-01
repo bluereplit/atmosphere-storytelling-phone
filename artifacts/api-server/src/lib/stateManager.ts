@@ -288,7 +288,7 @@ export function startAudioEngine(show: ShowConfig): void {
     logger.warn("SuperCollider not ready — will start audio when SC is ready");
     return;
   }
-  themeNodeId = startThemeSynth(show.environmentTheme, 1);
+  themeNodeId = startThemeSynth(show.environmentTheme, effectiveAmp(1.0));
   environmentTheme = show.environmentTheme;
 
   if (themeNodeId >= 0) {
@@ -313,4 +313,9 @@ export function teardown(): void {
   attrNodeIds.clear();
   attrEnabled.clear();
   themeNodeId = -1;
+  oldThemeNodeId = -1;
+  if (themeTransitionTimer) {
+    clearTimeout(themeTransitionTimer);
+    themeTransitionTimer = null;
+  }
 }

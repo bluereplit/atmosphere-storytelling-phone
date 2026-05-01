@@ -481,5 +481,36 @@ SynthDef(\attr_tavern_crowd, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     Out.ar(0, (sig.dup * ampLag * 0.45));
 }).add;
 
+// Seagulls: coastal bird calls with gliding pitch
+SynthDef(\attr_seagulls, { |amp=0.0, intensity=0.3, fadeTime=1.0|
+    var intLag = Lag.kr(intensity, 1.0);
+    var ampLag = Lag.kr(amp, fadeTime);
+    var rate = intLag.linlin(0, 1, 0.2, 1.2);
+    var calls = Mix.fill(3, { |i|
+        var trig = Dust.ar(rate * (0.5 + i * 0.2));
+        var env = Decay.ar(trig, 0.8 + i * 0.15);
+        var freq = LFNoise0.kr(0.3 + i * 0.1).exprange(600, 1400);
+        var slide = LFSaw.kr(2.0 + i * 0.3).range(0.0, 0.4);
+        SinOsc.ar(freq * (1 + slide), 0, env * 0.2)
+    });
+    var sig = FreeVerb.ar(calls, 0.3, 0.9, 0.5);
+    Out.ar(0, (sig.dup * ampLag * 0.4));
+}).add;
+
+// Dripping cave: slow irregular water drips with deep reverb
+SynthDef(\attr_dripping_cave, { |amp=0.0, intensity=0.3, fadeTime=1.0|
+    var intLag = Lag.kr(intensity, 1.0);
+    var ampLag = Lag.kr(amp, fadeTime);
+    var rate = intLag.linlin(0, 1, 0.3, 2.5);
+    var drip = Mix.fill(4, { |i|
+        var trig = Dust.ar(rate * (0.2 + i * 0.15));
+        var env = Decay.ar(trig, 0.04 + i * 0.01);
+        var freq = LFNoise0.kr(0.05).exprange(600, 2400);
+        SinOsc.ar(freq, 0, env * 0.5)
+    });
+    var sig = GVerb.ar(drip, 90, 8.0, 0.5);
+    Out.ar(0, (sig.dup * ampLag * 0.35));
+}).add;
+
 "Attribute SynthDefs loaded".postln;
 )

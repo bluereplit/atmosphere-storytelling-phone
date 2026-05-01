@@ -1,6 +1,8 @@
 // Environment Theme SynthDefs
-// Each theme accepts: amp, intensity, phaseOffset, fadeTime, gate
+// Each theme accepts: amp, intensity, phaseOffset, fadeTime, gate,
+//                     reverb (0-1 wet mix), lpfFreq (Hz), masterPitch (semitones)
 // intensity (0-1) morphs the sound from calm to energetic
+// reverb/lpfFreq/masterPitch are driven per-phase by the Node.js state machine
 // All themes use continuous synthesis - no samples
 
 (
@@ -10,7 +12,7 @@
 };
 
 // --- FOREST ---
-SynthDef(\env_forest, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1|
+SynthDef(\env_forest, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
     var env, sig, drone, leaves, water, depth;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
@@ -40,13 +42,17 @@ SynthDef(\env_forest, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
     depth = FreeVerb.ar(depth, 0.4, 0.6, 0.5);
 
     sig = [depth + leaves[1], depth + leaves[0]] * 0.4;
+    // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
+    sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
+    sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
+    sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;
 
 
 // --- OCEAN ---
-SynthDef(\env_ocean, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1|
+SynthDef(\env_ocean, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
     var env, sig, wave, drone, spray;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
@@ -69,13 +75,17 @@ SynthDef(\env_ocean, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, g
 
     sig = FreeVerb.ar(drone + wave + spray, 0.5, 0.8, 0.4);
     sig = [sig, sig] * 0.45;
+    // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
+    sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
+    sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
+    sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;
 
 
 // --- MOUNTAIN ---
-SynthDef(\env_mountain, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1|
+SynthDef(\env_mountain, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
     var env, sig, drone, wind, sparse;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
@@ -101,13 +111,17 @@ SynthDef(\env_mountain, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0
 
     sig = FreeVerb.ar(drone + wind + sparse, 0.6, 0.9, 0.3);
     sig = [sig, sig] * 0.4;
+    // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
+    sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
+    sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
+    sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;
 
 
 // --- DESERT ---
-SynthDef(\env_desert, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1|
+SynthDef(\env_desert, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
     var env, sig, sub, staticNoise, heat;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
@@ -129,13 +143,17 @@ SynthDef(\env_desert, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
     sig = sub + staticNoise + heat;
     sig = FreeVerb.ar(sig, 0.2, 0.5, 0.6);
     sig = [sig, sig] * 0.4;
+    // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
+    sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
+    sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
+    sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;
 
 
 // --- CITY ---
-SynthDef(\env_city, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1|
+SynthDef(\env_city, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
     var env, sig, hum, rumble, crowd;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
@@ -159,13 +177,17 @@ SynthDef(\env_city, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, ga
 
     sig = FreeVerb.ar(hum + rumble + crowd, 0.3, 0.5, 0.5);
     sig = [sig, sig] * 0.45;
+    // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
+    sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
+    sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
+    sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;
 
 
 // --- MYSTICAL ---
-SynthDef(\env_mystical, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1|
+SynthDef(\env_mystical, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
     var env, sig, drone, bells, shimmer;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
@@ -196,13 +218,17 @@ SynthDef(\env_mystical, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0
 
     sig = FreeVerb.ar(drone + bells + shimmer, 0.7, 0.9, 0.3);
     sig = [sig, sig] * 0.4;
+    // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
+    sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
+    sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
+    sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;
 
 
 // --- MEDIEVAL ---
-SynthDef(\env_medieval, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1|
+SynthDef(\env_medieval, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
     var env, sig, drone, perc;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
@@ -224,13 +250,17 @@ SynthDef(\env_medieval, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0
 
     sig = FreeVerb.ar(drone + perc, 0.5, 0.7, 0.4);
     sig = [sig, sig] * 0.45;
+    // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
+    sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
+    sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
+    sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;
 
 
 // --- UNDERWATER ---
-SynthDef(\env_underwater, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1|
+SynthDef(\env_underwater, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
     var env, sig, pressure, whomp, whale;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
@@ -257,13 +287,17 @@ SynthDef(\env_underwater, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3
 
     sig = FreeVerb.ar(pressure + whomp + whale, 0.6, 0.95, 0.2);
     sig = [sig, sig] * 0.45;
+    // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
+    sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
+    sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
+    sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;
 
 
 // --- COSMIC ---
-SynthDef(\env_cosmic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1|
+SynthDef(\env_cosmic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
     var env, sig, pad, radiation, sparse;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
@@ -292,13 +326,17 @@ SynthDef(\env_cosmic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
 
     sig = FreeVerb.ar(pad + radiation + sparse, 0.8, 1.0, 0.1);
     sig = [sig, sig] * 0.4;
+    // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
+    sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
+    sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
+    sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;
 
 
 // --- CAVE ---
-SynthDef(\env_cave, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1|
+SynthDef(\env_cave, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
     var env, sig, sub, echo, drip;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
@@ -320,13 +358,17 @@ SynthDef(\env_cave, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, ga
 
     sig = GVerb.ar(sub + echo + drip, 100, 8.0, 0.5);
     sig = sig.dup * 0.4;
+    // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
+    sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
+    sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
+    sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;
 
 
 // --- ARCTIC ---
-SynthDef(\env_arctic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1|
+SynthDef(\env_arctic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
     var env, sig, ice, wind, silence;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
@@ -350,13 +392,17 @@ SynthDef(\env_arctic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
 
     sig = FreeVerb.ar(ice + wind + silence, 0.7, 0.98, 0.15);
     sig = [sig, sig] * 0.4;
+    // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
+    sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
+    sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
+    sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;
 
 
 // --- JUNGLE ---
-SynthDef(\env_jungle, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1|
+SynthDef(\env_jungle, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
     var env, sig, insectBed, reverb, birdCalls;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
@@ -384,13 +430,17 @@ SynthDef(\env_jungle, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
     reverb = GVerb.ar(insectBed + birdCalls, 50, 4.0, 0.7);
 
     sig = reverb.dup * 0.4;
+    // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
+    sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
+    sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
+    sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;
 
 
 // --- TAVERN ---
-SynthDef(\env_tavern, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1|
+SynthDef(\env_tavern, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
     var env, sig, hum, crowd, fire, rhythm;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
@@ -420,6 +470,10 @@ SynthDef(\env_tavern, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
 
     sig = FreeVerb.ar(hum + crowd + fire + rhythm, 0.4, 0.6, 0.5);
     sig = [sig, sig] * 0.45;
+    // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
+    sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
+    sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
+    sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;

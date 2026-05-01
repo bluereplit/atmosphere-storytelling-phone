@@ -8,7 +8,7 @@ import { initRouter } from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 import { initWebSocketServer, broadcastState, broadcastOverlayToggle } from "./lib/wsServer.js";
 import { initOscServer } from "./lib/oscServer.js";
-import { startSuperCollider, stopSuperCollider, onSuperColliderReady } from "./lib/supercollider.js";
+import { startSuperCollider, stopSuperCollider, onEverySuperColliderReady, onEverySuperColliderExit } from "./lib/supercollider.js";
 import {
   initFromShow,
   onStateChange,
@@ -67,7 +67,12 @@ export function createAppServer(): Server {
 
   startSuperCollider();
 
-  onSuperColliderReady(() => {
+  onEverySuperColliderExit(() => {
+    logger.warn("SuperCollider exited — resetting audio engine state");
+    teardown();
+  });
+
+  onEverySuperColliderReady(() => {
     logger.info("SuperCollider ready — starting audio engine");
     startAudioEngine(currentShow);
   });

@@ -18,6 +18,8 @@ let restartTimer: ReturnType<typeof setTimeout> | null = null;
 
 const liveNodes = new Map<number, string>();
 const readyCallbacks: (() => void)[] = [];
+const persistentReadyHandlers: (() => void)[] = [];
+const persistentExitHandlers: (() => void)[] = [];
 
 export function isSuperColliderReady(): boolean {
   return isReady;
@@ -31,9 +33,20 @@ export function onSuperColliderReady(cb: () => void): void {
   }
 }
 
+export function onEverySuperColliderReady(cb: () => void): void {
+  persistentReadyHandlers.push(cb);
+  if (isReady) {
+    try { cb(); } catch (err) { logger.error({ err }, "SC persistent ready callback error"); }
+  }
+}
+
+export function onEverySuperColliderExit(cb: () => void): void {
+  persistentExitHandlers.push(cb);
+}
+
 function fireReadyCallbacks(): void {
   const cbs = readyCallbacks.splice(0);
-  for (const cb of cbs) {
+  for (const cb of [...cbs, ...persistentReadyHandlers]) {
     try { cb(); } catch (err) { logger.error({ err }, "SC ready callback error"); }
   }
 }
@@ -77,6 +90,9 @@ export function startSuperCollider(): void {
       oscClient = null;
       scProcess = null;
       liveNodes.clear();
+      for (const cb of persistentExitHandlers) {
+        try { cb(); } catch (err) { logger.error({ err }, "SC exit callback error"); }
+      }
 
       if (restartTimer) clearTimeout(restartTimer);
       restartTimer = setTimeout(() => {

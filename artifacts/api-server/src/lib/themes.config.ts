@@ -55,6 +55,8 @@ export const ATTRIBUTE_NAMES = [
   "blacksmith",
   "church_bells",
   "tavern_crowd",
+  "seagulls",
+  "dripping_cave",
 ] as const;
 export type AttributeName = (typeof ATTRIBUTE_NAMES)[number];
 
