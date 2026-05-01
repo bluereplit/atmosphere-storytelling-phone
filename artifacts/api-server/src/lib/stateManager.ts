@@ -85,12 +85,14 @@ export function getLiveState(): LiveState {
 
 export function initFromShow(show: ShowConfig): void {
   currentPhase = PHASES[0];
-  environmentTheme = show.environmentTheme;
-  intensity = show.intensity;
+  const initPhaseConfig = show.phases[currentPhase];
+  // Resolve effective theme/intensity respecting per-scene overrides
+  environmentTheme = initPhaseConfig?.environmentTheme ?? show.environmentTheme;
+  intensity = initPhaseConfig?.intensity ?? show.intensity;
   muted = show.muted;
   currentPhaseParams = {
     ...(DEFAULT_PHASE_PARAMS[currentPhase]),
-    ...(show.phases[currentPhase]?.params ?? {}),
+    ...(initPhaseConfig?.params ?? {}),
   };
 
   for (const name of ATTRIBUTE_NAMES) {
@@ -99,7 +101,7 @@ export function initFromShow(show: ShowConfig): void {
     if (tempo !== undefined) {
       attrExtras.set(name, { ...(attrExtras.get(name) ?? {}), tempo });
     }
-    attrEnabled.set(name, show.phases[currentPhase]?.attributes[name] ?? false);
+    attrEnabled.set(name, initPhaseConfig?.attributes[name] ?? false);
   }
 }
 
@@ -174,6 +176,18 @@ export function setPhase(phase: Phase, show: ShowConfig): void {
       masterPitch: currentPhaseParams.masterPitch,
       fadeTime:    PHASE_CROSSFADE_TIME,
     });
+  }
+
+  // Apply per-scene environment theme override if present, otherwise use show global
+  const effectiveTheme = phaseConfig?.environmentTheme ?? show.environmentTheme;
+  if (effectiveTheme !== environmentTheme) {
+    applyTheme(effectiveTheme);
+  }
+
+  // Apply per-scene intensity override if present, otherwise use show global
+  const effectiveIntensity = phaseConfig?.intensity ?? show.intensity;
+  if (effectiveIntensity !== intensity) {
+    setIntensity(effectiveIntensity);
   }
 
   for (const name of ATTRIBUTE_NAMES) {
@@ -358,6 +372,16 @@ export function applyShowConfig(show: ShowConfig): void {
       masterPitch: currentPhaseParams.masterPitch,
       fadeTime:    PHASE_CROSSFADE_TIME,
     });
+  }
+
+  // Apply per-scene theme/intensity overrides for the current phase
+  const effectiveTheme = phaseConfig?.environmentTheme ?? show.environmentTheme;
+  if (effectiveTheme !== environmentTheme) {
+    applyTheme(effectiveTheme);
+  }
+  const effectiveIntensity = phaseConfig?.intensity ?? show.intensity;
+  if (effectiveIntensity !== intensity) {
+    setIntensity(effectiveIntensity);
   }
 
   emit();
