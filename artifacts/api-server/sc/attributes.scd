@@ -74,8 +74,7 @@ SynthDef(\attr_ocean_waves, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     var intLag = Lag.kr(intensity, 1.0);
     var ampLag = Lag.kr(amp, fadeTime);
     var waveRate = intLag.linlin(0, 1, 0.08, 0.25);
-    var wave = BPF.ar(PinkNoise.ar(0.8), 400, 0.4);
-    wave = wave * SinOsc.kr(waveRate).range(0.0, 1.0);
+    var wave = BPF.ar(PinkNoise.ar(0.8), 400, 0.4) * SinOsc.kr(waveRate).range(0.0, 1.0);
     var sig = FreeVerb.ar(wave, 0.5, 0.7, 0.3);
     Out.ar(0, (sig.dup * ampLag * 0.55));
 }).add;
@@ -181,8 +180,7 @@ SynthDef(\attr_horses, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     var intLag = Lag.kr(intensity, 1.0);
     var ampLag = Lag.kr(amp, fadeTime);
     var hoofRate = intLag.linlin(0, 1, 1.0, 4.0);
-    var hoof = LPF.ar(BrownNoise.ar(0.7), 300) *
-        Decay.ar(Impulse.ar(hoofRate), 0.05, 0.5);
+    var hoof = LPF.ar(BrownNoise.ar(0.7), 300) * Decay.ar(Impulse.ar(hoofRate), 0.05, 0.5);
     var whinny = SinOsc.ar(
         EnvGen.ar(Env([400, 800, 300], [0.1, 0.2]), Dust.ar(0.1 + intLag * 0.2)),
         0,
@@ -196,9 +194,7 @@ SynthDef(\attr_horses, { |amp=0.0, intensity=0.3, fadeTime=1.0|
 SynthDef(\attr_waterfall, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     var intLag = Lag.kr(intensity, 1.0);
     var ampLag = Lag.kr(amp, fadeTime);
-    var roar = BrownNoise.ar(0.8);
-    roar = HPF.ar(roar, 200 + (intLag * 300));
-    roar = roar + (BPF.ar(WhiteNoise.ar(0.3), 3000, 0.5));
+    var roar = HPF.ar(BrownNoise.ar(0.8), 200 + (intLag * 300)) + BPF.ar(WhiteNoise.ar(0.3), 3000, 0.5);
     var sig = FreeVerb.ar(roar, 0.5, 0.7, 0.4);
     Out.ar(0, (sig.dup * ampLag * 0.5));
 }).add;
@@ -228,8 +224,7 @@ SynthDef(\attr_sandstorm, { |amp=0.0, intensity=0.3, fadeTime=1.0|
 SynthDef(\attr_geothermal, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     var intLag = Lag.kr(intensity, 1.0);
     var ampLag = Lag.kr(amp, fadeTime);
-    var bubble = Resonz.ar(BrownNoise.ar(0.6), 60 + (intLag * 40), 0.05);
-    bubble = bubble * LFNoise1.kr(2.0).range(0.0, 1.0);
+    var bubble = Resonz.ar(BrownNoise.ar(0.6), 60 + (intLag * 40), 0.05) * LFNoise1.kr(2.0).range(0.0, 1.0);
     var steam = HPF.ar(WhiteNoise.ar(0.3 * intLag), 2000) *
         LFNoise1.kr(0.3 + intLag).range(0.0, 1.0);
     Out.ar(0, ((bubble + steam).dup * ampLag * 0.4));
@@ -242,8 +237,7 @@ SynthDef(\attr_geothermal, { |amp=0.0, intensity=0.3, fadeTime=1.0|
 SynthDef(\attr_traffic, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     var intLag = Lag.kr(intensity, 1.0);
     var ampLag = Lag.kr(amp, fadeTime);
-    var hum = LPF.ar(PinkNoise.ar(0.5), 150 + (intLag * 200));
-    hum = hum * LFNoise1.kr(0.1).range(0.4, 1.0);
+    var hum = LPF.ar(PinkNoise.ar(0.5), 150 + (intLag * 200)) * LFNoise1.kr(0.1).range(0.4, 1.0);
     var horn = SinOsc.ar(400, 0,
         Decay.ar(Dust.ar(0.05 + intLag * 0.15), 0.3, 0.2 * intLag)
     );
@@ -260,8 +254,7 @@ SynthDef(\attr_crowd, { |amp=0.0, intensity=0.3, fadeTime=1.0|
             LFNoise1.kr(0.1 + i * 0.02).exprange(200, 1000),
             0.3
         ) * LFNoise1.kr(0.2 + i * 0.03).range(0.0, 1.0)
-    });
-    voices = voices * (0.3 + intLag * 0.7);
+    }) * (0.3 + intLag * 0.7);
     var sig = FreeVerb.ar(voices, 0.4, 0.5, 0.5);
     Out.ar(0, (sig.dup * ampLag * 0.4));
 }).add;
@@ -270,10 +263,8 @@ SynthDef(\attr_crowd, { |amp=0.0, intensity=0.3, fadeTime=1.0|
 SynthDef(\attr_subway, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     var intLag = Lag.kr(intensity, 1.0);
     var ampLag = Lag.kr(amp, fadeTime);
-    var rumble = LPF.ar(BrownNoise.ar(0.7), 100 + (intLag * 50));
-    rumble = rumble * LFNoise1.kr(0.05).range(0.3, 1.0);
-    var squeal = BPF.ar(WhiteNoise.ar(0.15), LFNoise0.kr(0.1).exprange(800, 2000), 0.2) *
-        LFNoise1.kr(0.08).range(0.0, intLag * 0.5);
+    var rumble = LPF.ar(BrownNoise.ar(0.7), 100 + (intLag * 50)) * LFNoise1.kr(0.05).range(0.3, 1.0);
+    var squeal = BPF.ar(WhiteNoise.ar(0.15), LFNoise0.kr(0.1).exprange(800, 2000), 0.2) * LFNoise1.kr(0.08).range(0.0, intLag * 0.5);
     var sig = FreeVerb.ar(rumble + squeal, 0.4, 0.6, 0.4);
     Out.ar(0, (sig.dup * ampLag * 0.5));
 }).add;
@@ -359,8 +350,7 @@ SynthDef(\attr_choir_pad, { |amp=0.0, intensity=0.3, fadeTime=1.0|
             freq,
             0.3
         ) * LFNoise1.kr(0.04).range(0.6, 1.0)
-    });
-    choir = choir * (0.4 + intLag * 0.6);
+    }) * (0.4 + intLag * 0.6);
     var sig = FreeVerb.ar(choir, 0.7, 0.9, 0.2);
     Out.ar(0, (sig.dup * ampLag * 0.4));
 }).add;
@@ -415,9 +405,7 @@ SynthDef(\attr_tension_drone, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     // Minor 2nd interval: C and Db
     var bow1 = Saw.ar(65.4, 0.15);
     var bow2 = Saw.ar(69.3, 0.15);
-    var drone = RLPF.ar(bow1 + bow2, 800 + (intLag * 1200), 0.4);
-    drone = drone * LFNoise1.kr(0.2 + intLag * 0.5).range(0.5, 1.0);
-    drone = drone * (0.5 + intLag * 0.5);
+    var drone = RLPF.ar(bow1 + bow2, 800 + (intLag * 1200), 0.4) * LFNoise1.kr(0.2 + intLag * 0.5).range(0.5, 1.0) * (0.5 + intLag * 0.5);
     var sig = FreeVerb.ar(drone, 0.5, 0.7, 0.4);
     Out.ar(0, (sig.dup * ampLag * 0.4));
 }).add;
@@ -427,8 +415,7 @@ SynthDef(\attr_thunder_distant, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     var intLag = Lag.kr(intensity, 1.0);
     var ampLag = Lag.kr(amp, fadeTime);
     var rate = intLag.linlin(0, 1, 0.05, 0.2);
-    var rumble = LPF.ar(BrownNoise.ar(0.7), 80);
-    rumble = rumble * Decay.ar(Dust.ar(rate), 4.0, 1.0);
+    var rumble = LPF.ar(BrownNoise.ar(0.7), 80) * Decay.ar(Dust.ar(rate), 4.0, 1.0);
     var sig = GVerb.ar(rumble, 100, 8.0, 0.6);
     Out.ar(0, (sig.dup * ampLag * 0.5));
 }).add;
@@ -468,15 +455,16 @@ SynthDef(\attr_church_bells, { |amp=0.0, intensity=0.3, fadeTime=1.0|
 SynthDef(\attr_tavern_crowd, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     var intLag = Lag.kr(intensity, 1.0);
     var ampLag = Lag.kr(amp, fadeTime);
-    var voices = Mix.fill(10, { |i|
-        BPF.ar(
-            PinkNoise.ar(0.08),
-            LFNoise1.kr(0.08 + i * 0.015).exprange(150, 600),
-            0.35
-        ) * LFNoise1.kr(0.15 + i * 0.02).range(0.0, 1.0)
-    });
-    voices = RLPF.ar(voices, 900, 0.7);
-    voices = voices * (0.4 + intLag * 0.6);
+    var voices = RLPF.ar(
+        Mix.fill(10, { |i|
+            BPF.ar(
+                PinkNoise.ar(0.08),
+                LFNoise1.kr(0.08 + i * 0.015).exprange(150, 600),
+                0.35
+            ) * LFNoise1.kr(0.15 + i * 0.02).range(0.0, 1.0)
+        }),
+        900, 0.7
+    ) * (0.4 + intLag * 0.6);
     var sig = FreeVerb.ar(voices, 0.5, 0.65, 0.45);
     Out.ar(0, (sig.dup * ampLag * 0.45));
 }).add;

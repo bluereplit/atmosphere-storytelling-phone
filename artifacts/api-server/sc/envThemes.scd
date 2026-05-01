@@ -6,16 +6,12 @@
 // All themes use continuous synthesis - no samples
 
 (
-// Helper: smooth intensity control with lag
-~makeIntensityCtrl = { |intensityBus, lagTime=2.0|
-    Lag.kr(intensityBus.asControlInput, lagTime)
-};
 
 // --- FOREST ---
 SynthDef(\env_forest, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+    var intLag = Lag.kr(intensity, 2.0);
     var env, sig, drone, leaves, water, depth;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
-    var intLag = Lag.kr(intensity, 2.0);
 
     // Root drone: warm organic tone in A
     drone = Mix.new([
@@ -53,9 +49,9 @@ SynthDef(\env_forest, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
 
 // --- OCEAN ---
 SynthDef(\env_ocean, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+    var intLag = Lag.kr(intensity, 2.0);
     var env, sig, wave, drone, spray;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
-    var intLag = Lag.kr(intensity, 2.0);
 
     // Open fifth harmonic bed: E and B
     drone = Mix.new([
@@ -86,9 +82,9 @@ SynthDef(\env_ocean, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, g
 
 // --- MOUNTAIN ---
 SynthDef(\env_mountain, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+    var intLag = Lag.kr(intensity, 2.0);
     var env, sig, drone, wind, sparse;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
-    var intLag = Lag.kr(intensity, 2.0);
 
     // Thin high-altitude drone: fifths very high
     drone = Mix.new([
@@ -122,9 +118,9 @@ SynthDef(\env_mountain, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0
 
 // --- DESERT ---
 SynthDef(\env_desert, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+    var intLag = Lag.kr(intensity, 2.0);
     var env, sig, sub, staticNoise, heat;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
-    var intLag = Lag.kr(intensity, 2.0);
 
     // Vast sub drone
     sub = SinOsc.ar(28 + (phaseOffset * 2), 0, 0.25);
@@ -154,9 +150,9 @@ SynthDef(\env_desert, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
 
 // --- CITY ---
 SynthDef(\env_city, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+    var intLag = Lag.kr(intensity, 2.0);
     var env, sig, hum, rumble, crowd;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
-    var intLag = Lag.kr(intensity, 2.0);
 
     // Urban electrical hum: 60Hz and harmonics
     hum = Mix.new([
@@ -188,9 +184,9 @@ SynthDef(\env_city, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, ga
 
 // --- MYSTICAL ---
 SynthDef(\env_mystical, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+    var intLag = Lag.kr(intensity, 2.0);
     var env, sig, drone, bells, shimmer;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
-    var intLag = Lag.kr(intensity, 2.0);
 
     // Modal drone: Dorian-flavored slow movement
     drone = Mix.new([
@@ -229,9 +225,9 @@ SynthDef(\env_mystical, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0
 
 // --- MEDIEVAL ---
 SynthDef(\env_medieval, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+    var intLag = Lag.kr(intensity, 2.0);
     var env, sig, drone, perc;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
-    var intLag = Lag.kr(intensity, 2.0);
 
     // Open fifth drone: D and A
     drone = Mix.new([
@@ -261,9 +257,9 @@ SynthDef(\env_medieval, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0
 
 // --- UNDERWATER ---
 SynthDef(\env_underwater, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+    var intLag = Lag.kr(intensity, 2.0);
     var env, sig, pressure, whomp, whale;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
-    var intLag = Lag.kr(intensity, 2.0);
 
     // Deep pressure resonance
     pressure = Mix.new([
@@ -298,9 +294,9 @@ SynthDef(\env_underwater, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3
 
 // --- COSMIC ---
 SynthDef(\env_cosmic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+    var intLag = Lag.kr(intensity, 2.0);
     var env, sig, pad, radiation, sparse;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
-    var intLag = Lag.kr(intensity, 2.0);
 
     // Infinite dark pad: detuned sines
     pad = Mix.fill(6, { |i|
@@ -337,9 +333,9 @@ SynthDef(\env_cosmic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
 
 // --- CAVE ---
 SynthDef(\env_cave, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+    var intLag = Lag.kr(intensity, 2.0);
     var env, sig, sub, echo, drip;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
-    var intLag = Lag.kr(intensity, 2.0);
 
     // Deep sub rumble
     sub = LPF.ar(BrownNoise.ar(0.35), 80 + (phaseOffset * 20));
@@ -356,8 +352,7 @@ SynthDef(\env_cave, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, ga
     );
     drip = FreeVerb.ar(drip, 0.9, 0.99, 0.1) * 0.5;
 
-    sig = GVerb.ar(sub + echo + drip, 100, 8.0, 0.5);
-    sig = sig.dup * 0.4;
+    sig = GVerb.ar((sub + echo + drip) * 0.4, 100, 8.0, 0.5);
     // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
     sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
@@ -369,9 +364,9 @@ SynthDef(\env_cave, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, ga
 
 // --- ARCTIC ---
 SynthDef(\env_arctic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+    var intLag = Lag.kr(intensity, 2.0);
     var env, sig, ice, wind, silence;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
-    var intLag = Lag.kr(intensity, 2.0);
 
     // Thin icy string texture
     ice = Mix.fill(4, { |i|
@@ -403,9 +398,9 @@ SynthDef(\env_arctic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
 
 // --- JUNGLE ---
 SynthDef(\env_jungle, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+    var intLag = Lag.kr(intensity, 2.0);
     var env, sig, insectBed, jungleReverb, birdCalls;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
-    var intLag = Lag.kr(intensity, 2.0);
 
     // Dense insect hum: layered band-pass noise
     insectBed = Mix.fill(4, { |i|
@@ -427,9 +422,9 @@ SynthDef(\env_jungle, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
     });
 
     // Wet reverb: deep jungle
-    jungleReverb = GVerb.ar(insectBed + birdCalls, 50, 4.0, 0.7);
+    jungleReverb = GVerb.ar((insectBed + birdCalls) * 0.4, 50, 4.0, 0.7);
 
-    sig = jungleReverb.dup * 0.4;
+    sig = jungleReverb;
     // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
     sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
@@ -441,9 +436,9 @@ SynthDef(\env_jungle, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
 
 // --- TAVERN ---
 SynthDef(\env_tavern, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+    var intLag = Lag.kr(intensity, 2.0);
     var env, sig, hum, crowd, fire, rhythm;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
-    var intLag = Lag.kr(intensity, 2.0);
 
     // Warm low-end hum: fundamental of a G
     hum = Mix.new([
@@ -477,6 +472,7 @@ SynthDef(\env_tavern, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
     sig = sig * env * Lag.kr(amp, fadeTime);
     Out.ar(0, sig);
 }).add;
+
 
 "Environment themes loaded".postln;
 )
