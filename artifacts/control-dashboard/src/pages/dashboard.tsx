@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useConnection } from "@/lib/ws-context";
 import {
   useAudioMute,
@@ -13,17 +13,69 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { VolumeX, Volume2, Monitor, SkipForward, ChevronDown, ChevronRight } from "lucide-react";
+import { VolumeX, Volume2, Monitor, SkipForward, ChevronDown, ChevronRight, Keyboard, X } from "lucide-react";
 import { LiveControls } from "@/components/LiveControls";
 import { ShowDesigner } from "@/components/ShowDesigner";
 import { OSCReference } from "@/components/OSCReference";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 const PHASES: Phase[] = ["daytime", "evening", "night", "dawn"];
+
+const SHORTCUT_LEGEND = [
+  { keys: ["1"], label: "Daytime" },
+  { keys: ["2"], label: "Evening" },
+  { keys: ["3"], label: "Night" },
+  { keys: ["4"], label: "Dawn" },
+  { keys: ["Space", "N"], label: "Next scene" },
+  { keys: ["M"], label: "Toggle mute" },
+  { keys: ["O"], label: "Toggle overlay" },
+];
+
+function ShortcutLegend({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <div className="absolute right-0 top-full mt-2 z-50 bg-card border border-border rounded-lg shadow-lg p-4 min-w-[200px] animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="flex items-center justify-between mb-3">
+        <span className="font-mono tracking-widest uppercase text-xs font-semibold text-muted-foreground">
+          Shortcuts
+        </span>
+        <button
+          onClick={onClose}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+          aria-label="Close shortcuts"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <div className="space-y-1.5">
+        {SHORTCUT_LEGEND.map(({ keys, label }) => (
+          <div key={label} className="flex items-center justify-between gap-4">
+            <span className="text-xs text-muted-foreground">{label}</span>
+            <div className="flex items-center gap-1">
+              {keys.map((k) => (
+                <kbd
+                  key={k}
+                  className="inline-flex items-center px-1.5 py-0.5 rounded border border-border bg-secondary text-xs font-mono text-foreground leading-none"
+                >
+                  {k}
+                </kbd>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-[10px] text-muted-foreground/60 font-mono">
+        Disabled when typing in inputs
+      </p>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { state, connected } = useConnection();
   const queryClient = useQueryClient();
   const [oscOpen, setOscOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const muteMutation = useAudioMute();
   const unmuteMutation = useAudioUnmute();
@@ -31,7 +83,7 @@ export default function Dashboard() {
   const transitionToMutation = useTransitionTo();
   const overlayMutation = useDisplayOverlayToggle();
 
-  const handleMuteToggle = () => {
+  const handleMuteToggle = useCallback(() => {
     if (state?.muted) {
       unmuteMutation.mutate(undefined, {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() })
@@ -41,25 +93,35 @@ export default function Dashboard() {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() })
       });
     }
-  };
+  }, [state?.muted, muteMutation, unmuteMutation, queryClient]);
 
-  const handleTransitionNext = () => {
+  const handleTransitionNext = useCallback(() => {
     transitionNextMutation.mutate(undefined, {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() })
     });
-  };
+  }, [transitionNextMutation, queryClient]);
 
-  const handleTransitionTo = (phase: Phase) => {
+  const handleTransitionTo = useCallback((phase: Phase) => {
     transitionToMutation.mutate({ phase }, {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() })
     });
-  };
+  }, [transitionToMutation, queryClient]);
 
-  const handleOverlayToggle = () => {
+  const handleOverlayToggle = useCallback(() => {
     overlayMutation.mutate(undefined, {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() })
     });
-  };
+  }, [overlayMutation, queryClient]);
+
+  useKeyboardShortcuts({
+    onPhase1: useCallback(() => handleTransitionTo("daytime"), [handleTransitionTo]),
+    onPhase2: useCallback(() => handleTransitionTo("evening"), [handleTransitionTo]),
+    onPhase3: useCallback(() => handleTransitionTo("night"), [handleTransitionTo]),
+    onPhase4: useCallback(() => handleTransitionTo("dawn"), [handleTransitionTo]),
+    onNext: handleTransitionNext,
+    onMuteToggle: handleMuteToggle,
+    onOverlayToggle: handleOverlayToggle,
+  });
 
   const attrs = state?.attributes ?? {};
   const attrEntries = Object.values(attrs) as Array<{ enabled: boolean }>;
@@ -93,6 +155,20 @@ export default function Dashboard() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Keyboard shortcut legend toggle */}
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="font-mono tracking-widest uppercase text-muted-foreground hover:text-foreground border border-transparent hover:border-border/50"
+                onClick={() => setShortcutsOpen((v) => !v)}
+                aria-label="Toggle keyboard shortcuts"
+              >
+                <Keyboard className="w-4 h-4 mr-2" />
+                Keys
+              </Button>
+              <ShortcutLegend open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -160,7 +236,7 @@ export default function Dashboard() {
             Scene
           </div>
           <div className="flex flex-1 items-center gap-2 px-2">
-            {PHASES.map((phase) => (
+            {PHASES.map((phase, i) => (
               <Button
                 key={phase}
                 variant={state?.currentPhase === phase ? "default" : "outline"}
@@ -168,6 +244,7 @@ export default function Dashboard() {
                 onClick={() => handleTransitionTo(phase)}
                 disabled={transitionToMutation.isPending}
               >
+                <span className="hidden sm:inline-block mr-1.5 opacity-40 text-xs">{i + 1}</span>
                 {phase}
               </Button>
             ))}
@@ -179,6 +256,7 @@ export default function Dashboard() {
               onClick={handleTransitionNext}
               disabled={transitionNextMutation.isPending}
               className="w-12 h-10 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
+              title="Next scene (Space / N)"
             >
               <SkipForward className="w-5 h-5" />
             </Button>
