@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useConnection } from "@/lib/ws-context";
-import { 
-  useSetEnvironmentTheme, 
+import {
+  useSetEnvironmentTheme,
   useSetIntensity,
   useAttributeToggle,
   useAttributeVolume,
@@ -13,51 +13,87 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useQueryClient } from "@tanstack/react-query";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronRight, Activity, Volume2 } from "lucide-react";
 
-const ATTRIBUTE_GROUPS = {
-  "Nature": ["crickets", "birds", "wind", "owls", "campfire", "ocean_waves", "frogs", "stream", "waterfall"],
-  "Weather": ["rain", "thunder", "thunder_distant", "blizzard", "sandstorm", "geothermal", "rain_city"],
-  "Wildlife": ["wolves", "ravens", "bats", "insects_night", "horses", "seagulls"],
-  "City/Urban": ["traffic", "crowd", "subway", "sirens"],
+const ATTRIBUTE_GROUPS: Record<string, string[]> = {
+  "Nature": ["crickets", "birds", "wind", "ocean_waves", "rain", "frogs", "stream", "waterfall"],
+  "Nature Extended": ["owls", "wolves", "ravens", "bats", "insects_night", "seagulls"],
+  "City/Urban": ["traffic", "crowd", "subway", "sirens", "rain_city"],
   "Mystical/Arcane": ["singing_bowls", "chimes", "whispers", "choir_pad", "portal_hum", "dripping_cave"],
-  "Dramatic/Tension": ["heartbeat", "war_drums", "tension_drone", "blacksmith", "church_bells", "tavern_crowd"]
+  "Dramatic/Tension": ["heartbeat", "war_drums", "tension_drone", "thunder", "thunder_distant", "blizzard", "sandstorm", "geothermal"],
+  "Medieval/Historical": ["campfire", "horses", "blacksmith", "church_bells", "tavern_crowd"]
 };
 
-const TEMPO_ATTRIBUTES = ["heartbeat", "war_drums", "blacksmith"];
+const TEMPO_ATTRIBUTES: string[] = ["heartbeat", "war_drums", "blacksmith"];
 
-const ENVIRONMENT_THEMES = [
-  "forest", "ocean", "mountain", "desert", "city", "mystical", 
-  "medieval", "underwater", "cosmic", "cave", "arctic", "jungle", "tavern"
+interface ThemeDescriptor {
+  name: EnvironmentTheme;
+  label: string;
+  descriptor: string;
+}
+
+const THEME_DESCRIPTORS: ThemeDescriptor[] = [
+  { name: "forest", label: "Forest", descriptor: "Ancient canopy, rustling leaves" },
+  { name: "ocean", label: "Ocean", descriptor: "Open sea, salt wind, waves" },
+  { name: "mountain", label: "Mountain", descriptor: "Alpine stillness, thin air" },
+  { name: "desert", label: "Desert", descriptor: "Scorched silence, dust storms" },
+  { name: "city", label: "City", descriptor: "Urban pulse, neon rain" },
+  { name: "mystical", label: "Mystical", descriptor: "Otherworldly resonance" },
+  { name: "medieval", label: "Medieval", descriptor: "Stone walls, forge smoke" },
+  { name: "underwater", label: "Underwater", descriptor: "Pressure and deep silence" },
+  { name: "cosmic", label: "Cosmic", descriptor: "Void drones, stellar drift" },
+  { name: "cave", label: "Cave", descriptor: "Drip echo, limestone dark" },
+  { name: "arctic", label: "Arctic", descriptor: "Blizzard howl, frozen waste" },
+  { name: "jungle", label: "Jungle", descriptor: "Dense canopy, creature calls" },
+  { name: "tavern", label: "Tavern", descriptor: "Firelight, crowd murmur" }
 ];
+
+function ThemeGrid({ currentTheme, onSelect }: { currentTheme: EnvironmentTheme | undefined; onSelect: (t: EnvironmentTheme) => void }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+      {THEME_DESCRIPTORS.map(({ name, label, descriptor }) => {
+        const isActive = currentTheme === name;
+        return (
+          <button
+            key={name}
+            onClick={() => onSelect(name)}
+            className={[
+              "rounded-md border p-3 text-left transition-all cursor-pointer hover:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary",
+              isActive
+                ? "bg-primary/10 border-primary shadow-sm shadow-primary/20 glow-border"
+                : "bg-card border-border hover:bg-card/80"
+            ].join(" ")}
+          >
+            <div className={`font-mono text-xs font-semibold uppercase tracking-widest mb-1 ${isActive ? "text-primary glow-text" : "text-foreground"}`}>
+              {label}
+            </div>
+            <div className="text-xs text-muted-foreground leading-tight">{descriptor}</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function AttributeControl({ name }: { name: AttributeName }) {
   const { state } = useConnection();
   const attrState = state?.attributes?.[name];
   const enabled = attrState?.enabled ?? false;
   const volume = attrState?.volume ?? 0.5;
-  const tempo = (attrState as any)?.tempo ?? 60;
-  
+
   const queryClient = useQueryClient();
   const toggleMutation = useAttributeToggle();
   const volumeMutation = useAttributeVolume();
   const tempoMutation = useAttributeTempo();
 
   const [localVol, setLocalVol] = useState(volume);
-  const [localTempo, setLocalTempo] = useState(tempo);
+  const [localTempo, setLocalTempo] = useState(60);
 
-  const volDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const tempoDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const volDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tempoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    setLocalVol(volume);
-  }, [volume]);
-
-  useEffect(() => {
-    setLocalTempo(tempo);
-  }, [tempo]);
+  useEffect(() => { setLocalVol(volume); }, [volume]);
 
   const handleToggle = () => {
     toggleMutation.mutate({ name }, {
@@ -68,7 +104,6 @@ function AttributeControl({ name }: { name: AttributeName }) {
   const handleVolumeChange = (val: number[]) => {
     const newVal = val[0];
     setLocalVol(newVal);
-    
     if (volDebounceRef.current) clearTimeout(volDebounceRef.current);
     volDebounceRef.current = setTimeout(() => {
       volumeMutation.mutate({ name, data: { value: newVal } }, {
@@ -80,7 +115,6 @@ function AttributeControl({ name }: { name: AttributeName }) {
   const handleTempoChange = (val: number[]) => {
     const newVal = val[0];
     setLocalTempo(newVal);
-    
     if (tempoDebounceRef.current) clearTimeout(tempoDebounceRef.current);
     tempoDebounceRef.current = setTimeout(() => {
       tempoMutation.mutate({ name, data: { value: newVal } }, {
@@ -89,37 +123,28 @@ function AttributeControl({ name }: { name: AttributeName }) {
     }, 300);
   };
 
+  const isTempo = TEMPO_ATTRIBUTES.includes(name as string);
+
   return (
-    <div className={`p-3 rounded-md border flex flex-col gap-3 transition-colors ${enabled ? 'bg-primary/5 border-primary/20' : 'bg-card border-border'}`}>
+    <div className={`p-3 rounded-md border flex flex-col gap-3 transition-colors ${enabled ? "bg-primary/5 border-primary/20" : "bg-card border-border"}`}>
       <div className="flex items-center justify-between">
-        <span className={`font-mono text-sm font-medium ${enabled ? 'text-primary glow-text' : 'text-muted-foreground'}`}>
-          {name.replace('_', ' ')}
+        <span className={`font-mono text-sm font-medium ${enabled ? "text-primary glow-text" : "text-muted-foreground"}`}>
+          {(name as string).replace(/_/g, " ")}
         </span>
         <Switch checked={enabled} onCheckedChange={handleToggle} />
       </div>
-      
+
       {enabled && (
         <div className="space-y-3 pt-2 border-t border-border/50">
           <div className="flex items-center gap-2">
-            <Volume2 className="h-4 w-4 text-muted-foreground" />
-            <Slider 
-              value={[localVol]} 
-              min={0} max={1} step={0.01} 
-              onValueChange={handleVolumeChange}
-              className="flex-1"
-            />
+            <Volume2 className="h-4 w-4 text-muted-foreground shrink-0" />
+            <Slider value={[localVol]} min={0} max={1} step={0.01} onValueChange={handleVolumeChange} className="flex-1" />
           </div>
-          
-          {TEMPO_ATTRIBUTES.includes(name) && (
+          {isTempo && (
             <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              <Slider 
-                value={[localTempo]} 
-                min={20} max={200} step={1} 
-                onValueChange={handleTempoChange}
-                className="flex-1"
-              />
-              <span className="text-xs text-muted-foreground w-8 text-right">{localTempo}</span>
+              <Activity className="h-4 w-4 text-muted-foreground shrink-0" />
+              <Slider value={[localTempo]} min={20} max={200} step={1} onValueChange={handleTempoChange} className="flex-1" />
+              <span className="text-xs text-muted-foreground w-12 text-right shrink-0">{localTempo} bpm</span>
             </div>
           )}
         </div>
@@ -128,7 +153,7 @@ function AttributeControl({ name }: { name: AttributeName }) {
   );
 }
 
-function AttributeGroup({ title, attributes }: { title: string, attributes: string[] }) {
+function AttributeGroup({ title, attributes }: { title: string; attributes: string[] }) {
   const [open, setOpen] = useState(true);
 
   return (
@@ -153,7 +178,7 @@ export function LiveControls() {
   const intensityMutation = useSetIntensity();
 
   const [localIntensity, setLocalIntensity] = useState(state?.intensity ?? 0);
-  const intensityDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const intensityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (state?.intensity !== undefined) {
@@ -161,7 +186,7 @@ export function LiveControls() {
     }
   }, [state?.intensity]);
 
-  const handleThemeChange = (theme: EnvironmentTheme) => {
+  const handleThemeSelect = (theme: EnvironmentTheme) => {
     themeMutation.mutate({ theme }, {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() })
     });
@@ -170,7 +195,6 @@ export function LiveControls() {
   const handleIntensityChange = (val: number[]) => {
     const newVal = val[0];
     setLocalIntensity(newVal);
-
     if (intensityDebounceRef.current) clearTimeout(intensityDebounceRef.current);
     intensityDebounceRef.current = setTimeout(() => {
       intensityMutation.mutate({ data: { value: newVal } }, {
@@ -181,47 +205,28 @@ export function LiveControls() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="border-border/50 bg-card/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-mono tracking-widest text-muted-foreground uppercase">Environment Theme</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Select 
-              value={state?.environmentTheme} 
-              onValueChange={(val) => handleThemeChange(val as EnvironmentTheme)}
-            >
-              <SelectTrigger className="h-12 bg-background border-border font-medium text-lg">
-                <SelectValue placeholder="Select theme..." />
-              </SelectTrigger>
-              <SelectContent>
-                {ENVIRONMENT_THEMES.map(theme => (
-                  <SelectItem key={theme} value={theme} className="font-medium">
-                    {theme.charAt(0).toUpperCase() + theme.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
+      <Card className="border-border/50 bg-card/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-mono tracking-widest text-muted-foreground uppercase">
+            Environment Theme
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ThemeGrid currentTheme={state?.environmentTheme} onSelect={handleThemeSelect} />
+        </CardContent>
+      </Card>
 
-        <Card className="border-border/50 bg-card/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-mono tracking-widest text-muted-foreground uppercase flex justify-between">
-              <span>Intensity</span>
-              <span className="text-primary">{Math.round(localIntensity * 100)}%</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center h-12">
-            <Slider 
-              value={[localIntensity]} 
-              min={0} max={1} step={0.01}
-              onValueChange={handleIntensityChange}
-              className="flex-1"
-            />
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="border-border/50 bg-card/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-mono tracking-widest text-muted-foreground uppercase flex justify-between">
+            <span>Intensity</span>
+            <span className="text-primary">{Math.round(localIntensity * 100)}%</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center h-12">
+          <Slider value={[localIntensity]} min={0} max={1} step={0.01} onValueChange={handleIntensityChange} className="flex-1" />
+        </CardContent>
+      </Card>
 
       <div className="space-y-4">
         {Object.entries(ATTRIBUTE_GROUPS).map(([title, attributes]) => (

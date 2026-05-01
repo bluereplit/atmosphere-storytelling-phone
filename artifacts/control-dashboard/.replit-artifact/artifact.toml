@@ -1,5 +1,5 @@
 kind = "web"
-previewPath = "/control-dashboard/"
+previewPath = "/"
 title = "Control Dashboard"
 version = "1.0.0"
 id = "artifacts/control-dashboard"
@@ -11,7 +11,7 @@ version = "1.0.0"
 
 [[services]]
 name = "web"
-paths = [ "/control-dashboard/" ]
+paths = [ "/" ]
 localPort = 20266
 
 [services.development]
@@ -28,4 +28,4 @@ to = "/index.html"
 
 [services.env]
 PORT = "20266"
-BASE_PATH = "/control-dashboard/"
+BASE_PATH = "/"
