@@ -3,20 +3,32 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Atmosphere Storytelling System API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: state
+    description: Live system state
+  - name: transition
+    description: Scene transitions
+  - name: environment
+    description: Environment theme control
+  - name: attributes
+    description: Audio attribute control
+  - name: audio
+    description: Master audio control
+  - name: show
+    description: Show configuration
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +36,364 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /state:
+    get:
+      operationId: getState
+      tags: [state]
+      summary: Get live system state
+      responses:
+        "200":
+          description: Current live state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveState"
+
+  /audio/status:
+    get:
+      operationId: getAudioStatus
+      tags: [audio]
+      summary: Get SuperCollider and OSC status
+      responses:
+        "200":
+          description: Audio system status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AudioStatus"
+
+  /transition/next:
+    post:
+      operationId: transitionNext
+      tags: [transition]
+      summary: Advance to next scene
+      responses:
+        "200":
+          description: New scene
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhaseResponse"
+
+  /transition/to/{phase}:
+    post:
+      operationId: transitionTo
+      tags: [transition]
+      summary: Jump to a specific scene
+      parameters:
+        - name: phase
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Phase"
+      responses:
+        "200":
+          description: New scene
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhaseResponse"
+        "400":
+          description: Invalid phase
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /environment/set/{theme}:
+    post:
+      operationId: setEnvironmentTheme
+      tags: [environment]
+      summary: Set the environment theme
+      parameters:
+        - name: theme
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/EnvironmentTheme"
+      responses:
+        "200":
+          description: Theme set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThemeResponse"
+        "400":
+          description: Invalid theme
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /environment/intensity:
+    post:
+      operationId: setIntensity
+      tags: [environment]
+      summary: Set the environment intensity (0.0–1.0)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValueBody"
+      responses:
+        "200":
+          description: Intensity set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntensityResponse"
+        "400":
+          description: Invalid value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /attribute/{name}/on:
+    post:
+      operationId: attributeOn
+      tags: [attributes]
+      summary: Enable an audio attribute
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/AttributeName"
+      responses:
+        "200":
+          description: Attribute enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttributeToggleResult"
+        "400":
+          description: Unknown attribute
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /attribute/{name}/off:
+    post:
+      operationId: attributeOff
+      tags: [attributes]
+      summary: Disable an audio attribute
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/AttributeName"
+      responses:
+        "200":
+          description: Attribute disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttributeToggleResult"
+        "400":
+          description: Unknown attribute
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /attribute/{name}/toggle:
+    post:
+      operationId: attributeToggle
+      tags: [attributes]
+      summary: Toggle an audio attribute
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/AttributeName"
+      responses:
+        "200":
+          description: Attribute toggled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttributeToggleResult"
+        "400":
+          description: Unknown attribute
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /attribute/{name}/volume:
+    post:
+      operationId: attributeVolume
+      tags: [attributes]
+      summary: Set attribute volume (0.0–1.0)
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/AttributeName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValueBody"
+      responses:
+        "200":
+          description: Volume set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttributeVolumeResult"
+        "400":
+          description: Invalid value or unknown attribute
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /attribute/{name}/tempo:
+    post:
+      operationId: attributeTempo
+      tags: [attributes]
+      summary: Set tempo (BPM) for rhythm attributes
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/AttributeName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValueBody"
+      responses:
+        "200":
+          description: Tempo set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttributeTempoResult"
+        "400":
+          description: Invalid value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /attribute/{name}/distance:
+    post:
+      operationId: attributeDistance
+      tags: [attributes]
+      summary: Set distance (0.0–1.0) for spatial attributes
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/AttributeName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValueBody"
+      responses:
+        "200":
+          description: Distance set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttributeDistanceResult"
+        "400":
+          description: Invalid value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /audio/mute:
+    post:
+      operationId: audioMute
+      tags: [audio]
+      summary: Mute all audio
+      responses:
+        "200":
+          description: Muted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MuteResponse"
+
+  /audio/unmute:
+    post:
+      operationId: audioUnmute
+      tags: [audio]
+      summary: Unmute audio
+      responses:
+        "200":
+          description: Unmuted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MuteResponse"
+
+  /show:
+    get:
+      operationId: getShow
+      tags: [show]
+      summary: Get the current show configuration
+      responses:
+        "200":
+          description: Show configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowConfig"
+    put:
+      operationId: updateShow
+      tags: [show]
+      summary: Update and save the show configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShowConfig"
+      responses:
+        "200":
+          description: Updated show configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowConfig"
+        "400":
+          description: Invalid configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /show/reset:
+    post:
+      operationId: resetShow
+      tags: [show]
+      summary: Reset show configuration to defaults
+      responses:
+        "200":
+          description: Default show configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowConfig"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +404,260 @@ components:
       required:
         - status
 
+    Phase:
+      type: string
+      enum: [daytime, evening, night, dawn]
+
+    EnvironmentTheme:
+      type: string
+      enum:
+        - forest
+        - ocean
+        - mountain
+        - desert
+        - city
+        - mystical
+        - medieval
+        - underwater
+        - cosmic
+        - cave
+        - arctic
+        - jungle
+        - tavern
+
+    AttributeName:
+      type: string
+      enum:
+        - crickets
+        - birds
+        - wind
+        - owls
+        - campfire
+        - ocean_waves
+        - rain
+        - thunder
+        - frogs
+        - stream
+        - wolves
+        - ravens
+        - bats
+        - insects_night
+        - horses
+        - waterfall
+        - blizzard
+        - sandstorm
+        - geothermal
+        - traffic
+        - crowd
+        - subway
+        - sirens
+        - rain_city
+        - singing_bowls
+        - chimes
+        - whispers
+        - choir_pad
+        - portal_hum
+        - heartbeat
+        - war_drums
+        - tension_drone
+        - thunder_distant
+        - blacksmith
+        - church_bells
+        - tavern_crowd
+
+    AttributeState:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        volume:
+          type: number
+          minimum: 0
+          maximum: 1
+      required:
+        - enabled
+        - volume
+
+    LiveState:
+      type: object
+      properties:
+        currentPhase:
+          $ref: "#/components/schemas/Phase"
+        environmentTheme:
+          $ref: "#/components/schemas/EnvironmentTheme"
+        intensity:
+          type: number
+          minimum: 0
+          maximum: 1
+        attributes:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/AttributeState"
+        muted:
+          type: boolean
+        scReady:
+          type: boolean
+      required:
+        - currentPhase
+        - environmentTheme
+        - intensity
+        - attributes
+        - muted
+        - scReady
+
+    AudioStatus:
+      type: object
+      properties:
+        supercollider:
+          type: string
+          enum: [ready, unavailable]
+        oscPort:
+          type: integer
+      required:
+        - supercollider
+        - oscPort
+
+    PhaseConfig:
+      type: object
+      properties:
+        attributes:
+          type: object
+          additionalProperties:
+            type: boolean
+      required:
+        - attributes
+
+    ShowConfig:
+      type: object
+      properties:
+        environmentTheme:
+          $ref: "#/components/schemas/EnvironmentTheme"
+        intensity:
+          type: number
+          minimum: 0
+          maximum: 1
+        muted:
+          type: boolean
+        phases:
+          type: object
+          properties:
+            daytime:
+              $ref: "#/components/schemas/PhaseConfig"
+            evening:
+              $ref: "#/components/schemas/PhaseConfig"
+            night:
+              $ref: "#/components/schemas/PhaseConfig"
+            dawn:
+              $ref: "#/components/schemas/PhaseConfig"
+          required:
+            - daytime
+            - evening
+            - night
+            - dawn
+        attributeVolumes:
+          type: object
+          additionalProperties:
+            type: number
+        attributeTempo:
+          type: object
+          additionalProperties:
+            type: number
+      required:
+        - environmentTheme
+        - intensity
+        - muted
+        - phases
+        - attributeVolumes
+        - attributeTempo
+
+    ValueBody:
+      type: object
+      properties:
+        value:
+          type: number
+      required:
+        - value
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    PhaseResponse:
+      type: object
+      properties:
+        phase:
+          $ref: "#/components/schemas/Phase"
+      required:
+        - phase
+
+    ThemeResponse:
+      type: object
+      properties:
+        environmentTheme:
+          $ref: "#/components/schemas/EnvironmentTheme"
+      required:
+        - environmentTheme
+
+    IntensityResponse:
+      type: object
+      properties:
+        intensity:
+          type: number
+      required:
+        - intensity
+
+    AttributeToggleResult:
+      type: object
+      properties:
+        attribute:
+          $ref: "#/components/schemas/AttributeName"
+        enabled:
+          type: boolean
+      required:
+        - attribute
+        - enabled
+
+    AttributeVolumeResult:
+      type: object
+      properties:
+        attribute:
+          $ref: "#/components/schemas/AttributeName"
+        volume:
+          type: number
+      required:
+        - attribute
+        - volume
+
+    AttributeTempoResult:
+      type: object
+      properties:
+        attribute:
+          $ref: "#/components/schemas/AttributeName"
+        tempo:
+          type: number
+      required:
+        - attribute
+        - tempo
+
+    AttributeDistanceResult:
+      type: object
+      properties:
+        attribute:
+          $ref: "#/components/schemas/AttributeName"
+        distance:
+          type: number
+      required:
+        - attribute
+        - distance
+
+    MuteResponse:
+      type: object
+      properties:
+        muted:
+          type: boolean
+      required:
+        - muted

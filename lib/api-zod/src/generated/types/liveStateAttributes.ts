@@ -5,7 +5,6 @@
  * Atmosphere Storytelling System API
  * OpenAPI spec version: 0.1.0
  */
+import type { AttributeState } from "./attributeState";
 
-export interface HealthStatus {
-  status: string;
-}
+export type LiveStateAttributes = { [key: string]: AttributeState };

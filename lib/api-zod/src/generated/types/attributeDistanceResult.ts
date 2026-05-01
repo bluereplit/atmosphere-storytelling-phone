@@ -5,7 +5,9 @@
  * Atmosphere Storytelling System API
  * OpenAPI spec version: 0.1.0
  */
+import type { AttributeName } from "./attributeName";
 
-export interface HealthStatus {
-  status: string;
+export interface AttributeDistanceResult {
+  attribute: AttributeName;
+  distance: number;
 }

@@ -5,7 +5,8 @@
  * Atmosphere Storytelling System API
  * OpenAPI spec version: 0.1.0
  */
+import type { Phase } from "./phase";
 
-export interface HealthStatus {
-  status: string;
+export interface PhaseResponse {
+  phase: Phase;
 }
