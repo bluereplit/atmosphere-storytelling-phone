@@ -1,0 +1,352 @@
+"""
+Theme renderer classes — one per phase (Daytime, Evening, Night, Dawn).
+
+Each renderer:
+  update(dt, w, h)     — advance animation state each frame
+  draw(surface)        — composite background + all active layers onto surface
+  set_attribute(name, enabled)  — enable/disable a named attribute layer
+
+Attribute → visual-layer mapping uses the backend's audio attribute names
+as-is where they match (birds, campfire→fireflies, owls→moon, etc.).
+"""
+from __future__ import annotations
+import math
+import random
+import pygame
+from layers import (
+    SunbeamsLayer, BirdsLayer,
+    FirefliesLayer, EveningCloudsLayer,
+    MoonLayer, StarsLayer, AuroraLayer,
+    MistLayer, DawnBirdsLayer,
+)
+
+TWO_PI = math.pi * 2
+
+
+def _draw_gradient(surface: pygame.Surface,
+                   colors: list[tuple[tuple, float]]) -> None:
+    """
+    Draw a vertical gradient from top to bottom.
+    `colors` is a list of (rgb_tuple, stop) where stop is 0.0–1.0.
+    Stops must be sorted ascending.
+    """
+    w, h = surface.get_size()
+    for y in range(h):
+        t = y / max(1, h - 1)
+        c = colors[0][0]
+        for i in range(len(colors) - 1):
+            t0, t1 = colors[i][1], colors[i + 1][1]
+            if t0 <= t <= t1:
+                seg = (t - t0) / max(0.001, t1 - t0)
+                c0, c1 = colors[i][0], colors[i + 1][0]
+                c = (
+                    int(c0[0] + (c1[0] - c0[0]) * seg),
+                    int(c0[1] + (c1[1] - c0[1]) * seg),
+                    int(c0[2] + (c1[2] - c0[2]) * seg),
+                )
+                break
+        else:
+            c = colors[-1][0]
+        pygame.draw.line(surface, c, (0, y), (w, y))
+
+
+def _draw_clouds(surface: pygame.Surface, clouds: list[dict],
+                 color: tuple, outline: tuple | None = None) -> None:
+    for c in clouds:
+        for dx, dy, r in c["blobs"]:
+            cx = int(c["x"] + dx)
+            cy = int(c["y"] + dy)
+            pygame.draw.ellipse(surface, color,
+                                (cx - r, cy - r // 2, r * 2, r))
+            if outline:
+                pygame.draw.ellipse(surface, outline,
+                                    (cx - r, cy - r // 2, r * 2, r), 1)
+
+
+# ─────────────────────────────────────────────────────────────
+#  Base renderer
+# ─────────────────────────────────────────────────────────────
+
+class BaseRenderer:
+    ATTRIBUTE_MAP: dict[str, str] = {}   # audio_attr_name → layer_attr_name
+
+    def __init__(self) -> None:
+        self._layers: dict[str, object] = {}
+        self._bg: pygame.Surface | None = None
+        self._time = 0.0
+
+    def _ensure_bg(self, w: int, h: int) -> pygame.Surface:
+        if self._bg is None or self._bg.get_size() != (w, h):
+            self._bg = pygame.Surface((w, h))
+            self._paint_bg(self._bg)
+        return self._bg
+
+    def _paint_bg(self, surface: pygame.Surface) -> None:
+        pass  # subclasses override
+
+    def update(self, dt: float, w: int, h: int) -> None:
+        self._time += dt
+        for layer in self._layers.values():
+            layer.update(dt, w, h)
+
+    def draw(self, surface: pygame.Surface) -> None:
+        w, h = surface.get_size()
+        bg = self._ensure_bg(w, h)
+        surface.blit(bg, (0, 0))
+        self._draw_animated(surface, w, h)
+        for layer in self._layers.values():
+            layer.draw(surface)
+
+    def _draw_animated(self, surface: pygame.Surface, w: int, h: int) -> None:
+        pass  # subclasses add animated elements on top of bg
+
+    def set_attribute(self, audio_name: str, enabled: bool) -> None:
+        layer_name = self.ATTRIBUTE_MAP.get(audio_name)
+        if layer_name and layer_name in self._layers:
+            self._layers[layer_name].enabled = enabled
+
+
+# ─────────────────────────────────────────────────────────────
+#  Daytime
+# ─────────────────────────────────────────────────────────────
+
+class DaytimeRenderer(BaseRenderer):
+    """
+    Clear sky from deep azure at top to pale gold at horizon.
+    Animated: drifting cumulus clouds, sun disc with bloom.
+    Layers: sunbeams (driven by "wind" attribute), birds ("birds" attribute).
+    """
+    ATTRIBUTE_MAP = {"wind": "sunbeams", "birds": "birds"}
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._layers = {
+            "sunbeams": SunbeamsLayer(),
+            "birds": BirdsLayer(),
+        }
+        self._clouds: list[dict] = []
+        self._spawn_clouds()
+
+    def _paint_bg(self, surface: pygame.Surface) -> None:
+        _draw_gradient(surface, [
+            ((18,  90, 180), 0.0),   # deep azure top
+            ((82, 160, 220), 0.35),  # mid sky blue
+            ((170, 210, 240), 0.70), # light sky
+            ((245, 235, 195), 0.90), # warm horizon gold
+            ((255, 248, 220), 1.0),  # pale cream at ground
+        ])
+
+    def _spawn_clouds(self) -> None:
+        for _ in range(6):
+            self._clouds.append(self._make_cloud())
+
+    def _make_cloud(self, start_x: int = -1) -> dict:
+        if start_x < 0:
+            start_x = random.randint(0, 2000)
+        return {
+            "x": float(start_x),
+            "y": random.uniform(80, 320),
+            "vx": random.uniform(10, 26),
+            "blobs": [
+                (random.randint(30, 100), random.randint(0, 50),
+                 random.randint(28, 70))
+                for _ in range(random.randint(4, 8))
+            ],
+        }
+
+    def update(self, dt: float, w: int, h: int) -> None:
+        super().update(dt, w, h)
+        for c in self._clouds:
+            c["x"] += c["vx"] * dt
+        self._clouds = [c for c in self._clouds if c["x"] < w + 250]
+        while len(self._clouds) < 6:
+            self._clouds.append(self._make_cloud(start_x=-220))
+
+    def _draw_animated(self, surface: pygame.Surface, w: int, h: int) -> None:
+        sx, sy = int(w * 0.22), int(h * 0.12)
+        pulse = 0.9 + 0.1 * math.sin(self._time * 0.3)
+        for r, a in [(90, 14), (65, 28), (48, 48), (35, 75)]:
+            glow = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+            pygame.draw.circle(glow, (255, 248, 180, int(a * pulse)), (r, r), r)
+            surface.blit(glow, (sx - r, sy - r))
+        pygame.draw.circle(surface, (255, 252, 220), (sx, sy), 28)
+        _draw_clouds(surface, self._clouds, (255, 255, 255), (235, 235, 250))
+
+
+# ─────────────────────────────────────────────────────────────
+#  Evening
+# ─────────────────────────────────────────────────────────────
+
+class EveningRenderer(BaseRenderer):
+    """
+    Amber-to-crimson sunset with dark cloud silhouettes near the horizon.
+    Layers: fireflies ("campfire" attribute), extra clouds ("wind" attribute).
+    """
+    ATTRIBUTE_MAP = {"campfire": "fireflies", "wind": "clouds"}
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._layers = {
+            "fireflies": FirefliesLayer(),
+            "clouds": EveningCloudsLayer(),
+        }
+        self._clouds_base: list[dict] = []
+        self._spawn_clouds()
+
+    def _paint_bg(self, surface: pygame.Surface) -> None:
+        _draw_gradient(surface, [
+            ((30,  15,  55), 0.0),   # deep violet top
+            ((100,  40,  80), 0.30), # purple-crimson
+            ((200,  85,  30), 0.60), # amber-orange
+            ((235, 145,  40), 0.80), # warm gold
+            ((250, 200, 100), 0.92), # bright horizon
+            ((255, 220, 150), 1.0),  # pale gold ground
+        ])
+
+    def _spawn_clouds(self) -> None:
+        for _ in range(5):
+            self._clouds_base.append(self._make_cloud())
+
+    def _make_cloud(self, start_x: int = -1) -> dict:
+        if start_x < 0:
+            start_x = random.randint(0, 2000)
+        return {
+            "x": float(start_x),
+            "y": random.uniform(300, 480),
+            "vx": random.uniform(6, 16),
+            "blobs": [
+                (random.randint(30, 90), random.randint(0, 40), random.randint(22, 55))
+                for _ in range(random.randint(4, 7))
+            ],
+        }
+
+    def update(self, dt: float, w: int, h: int) -> None:
+        super().update(dt, w, h)
+        for c in self._clouds_base:
+            c["x"] += c["vx"] * dt
+        self._clouds_base = [c for c in self._clouds_base if c["x"] < w + 250]
+        while len(self._clouds_base) < 5:
+            self._clouds_base.append(self._make_cloud(start_x=-220))
+
+    def _draw_animated(self, surface: pygame.Surface, w: int, h: int) -> None:
+        _draw_clouds(surface, self._clouds_base, (22, 12, 35))
+
+
+# ─────────────────────────────────────────────────────────────
+#  Night
+# ─────────────────────────────────────────────────────────────
+
+class NightRenderer(BaseRenderer):
+    """
+    Deep navy-to-black sky with always-on star field.
+    Layers: moon ("owls" attribute), aurora ("choir_pad" attribute),
+    extra star density ("crickets" attribute).
+    """
+    ATTRIBUTE_MAP = {"owls": "moon", "choir_pad": "aurora", "crickets": "stars"}
+
+    def __init__(self) -> None:
+        super().__init__()
+        # Stars are always faintly visible at night (enabled by default)
+        stars = StarsLayer()
+        stars.enabled = True
+        stars.alpha = 1.0
+        self._layers = {
+            "stars": stars,
+            "moon": MoonLayer(),
+            "aurora": AuroraLayer(),
+        }
+        self._treeline: pygame.Surface | None = None
+
+    def _paint_bg(self, surface: pygame.Surface) -> None:
+        _draw_gradient(surface, [
+            ((4,   4,  14), 0.0),   # near-black zenith
+            ((8,  16,  40), 0.45),  # dark navy
+            ((14,  28,  55), 0.70), # slightly lighter navy
+            ((18,  35,  60), 0.88), # dark horizon
+            ((10,  15,  25), 1.0),  # dark ground
+        ])
+
+    def _ensure_treeline(self, w: int, h: int) -> pygame.Surface:
+        if self._treeline is None or self._treeline.get_size() != (w, h):
+            self._treeline = pygame.Surface((w, h), pygame.SRCALPHA)
+            rng = random.Random(42)  # fixed seed for consistent silhouette
+            x = 0
+            while x < w:
+                tree_h = rng.randint(int(h * 0.08), int(h * 0.22))
+                tree_w = rng.randint(25, 55)
+                tip_y = h - tree_h
+                # Pine triangle
+                pts = [
+                    (x + tree_w // 2, tip_y),
+                    (x, h),
+                    (x + tree_w, h),
+                ]
+                pygame.draw.polygon(self._treeline, (8, 12, 20, 255), pts)
+                x += tree_w - rng.randint(5, 18)
+        return self._treeline
+
+    def _draw_animated(self, surface: pygame.Surface, w: int, h: int) -> None:
+        tl = self._ensure_treeline(w, h)
+        surface.blit(tl, (0, 0))
+
+
+# ─────────────────────────────────────────────────────────────
+#  Dawn
+# ─────────────────────────────────────────────────────────────
+
+class DawnRenderer(BaseRenderer):
+    """
+    Soft pink-lavender sky brightening toward gold at the horizon.
+    Layers: mist ("stream" attribute), birds ("birds" attribute).
+    """
+    ATTRIBUTE_MAP = {"stream": "mist", "birds": "birds"}
+
+    def __init__(self) -> None:
+        super().__init__()
+        # Mist is always faintly present at dawn
+        mist = MistLayer()
+        mist.enabled = True
+        mist.alpha = 0.6
+        self._layers = {
+            "mist": mist,
+            "birds": DawnBirdsLayer(),
+        }
+
+    def _paint_bg(self, surface: pygame.Surface) -> None:
+        _draw_gradient(surface, [
+            ((38,  22,  60), 0.0),   # deep violet-blue top
+            ((100,  60, 130), 0.25), # lavender
+            ((185, 130, 185), 0.50), # soft pink-purple
+            ((235, 170, 150), 0.70), # warm pink
+            ((250, 215, 170), 0.85), # golden pink horizon
+            ((255, 240, 210), 1.0),  # pale cream ground
+        ])
+
+    def _draw_animated(self, surface: pygame.Surface, w: int, h: int) -> None:
+        # Subtle horizon glow
+        glow_h = int(h * 0.10)
+        glow_y = int(h * 0.72)
+        glow_surf = pygame.Surface((w, glow_h), pygame.SRCALPHA)
+        pulse = 0.7 + 0.3 * math.sin(self._time * 0.25)
+        for y in range(glow_h):
+            t = 1.0 - y / max(1, glow_h - 1)
+            a = int(t * 55 * pulse)
+            pygame.draw.line(glow_surf, (255, 200, 120, a), (0, y), (w, y))
+        surface.blit(glow_surf, (0, glow_y))
+
+
+# ─────────────────────────────────────────────────────────────
+#  Factory
+# ─────────────────────────────────────────────────────────────
+
+RENDERERS: dict[str, type] = {
+    "daytime": DaytimeRenderer,
+    "evening": EveningRenderer,
+    "night":   NightRenderer,
+    "dawn":    DawnRenderer,
+}
+
+
+def make_renderer(phase: str) -> BaseRenderer:
+    cls = RENDERERS.get(phase, DaytimeRenderer)
+    return cls()

@@ -8,7 +8,7 @@ Self-hosted storytelling atmosphere system for Raspberry Pi. pnpm workspace mono
 
 Build a self-hosted real-time storytelling atmosphere system with:
 1. **Node.js/Express backend** — REST + WebSocket + OSC APIs, 5-phase state machine, 13 environment themes, 38 toggleable audio attributes synthesized via SuperCollider
-2. **Python+pygame visual display** — fullscreen native GPU output over HDMI (TBD)
+2. **Python+pygame visual display** — fullscreen native GPU output over HDMI (complete)
 3. **React+Vite web control dashboard** — control panel for live use (TBD)
 
 All sound is programmatically generated via SuperCollider SynthDefs. No file-based audio.
@@ -86,6 +86,43 @@ All sound is programmatically generated via SuperCollider SynthDefs. No file-bas
 ### OSC address space
 
 All REST endpoints are mirrored as OSC messages. See `docs/OSC_API.md`.
+
+## Artifact: Atmosphere Display (Python + pygame)
+
+**Dir**: `artifacts/atmosphere-display/`  
+**Runtime**: Python 3.11 + pygame 2.6 (SDL2)  
+**Launch**: `start_display.sh` at workspace root (or `python3 artifacts/atmosphere-display/main.py`)
+
+### Source files
+
+| File | Purpose |
+|---|---|
+| `main.py` | Entry point: pygame init, main render loop, event application |
+| `ws_client.py` | Asyncio WebSocket client in a daemon thread, feeds `queue.Queue` |
+| `renderers.py` | Theme renderer classes: DaytimeRenderer, EveningRenderer, NightRenderer, DawnRenderer |
+| `layers.py` | Attribute layer classes: SunbeamsLayer, BirdsLayer, FirefliesLayer, EveningCloudsLayer, MoonLayer, StarsLayer, AuroraLayer, MistLayer, DawnBirdsLayer |
+
+### Visual → attribute mapping
+
+| Phase | Always rendered | Layer: audio attribute |
+|---|---|---|
+| Daytime | Sky gradient, sun disc, clouds | Sunbeams ← `wind`; Birds ← `birds` |
+| Evening | Sunset gradient, cloud silhouettes | Fireflies ← `campfire`; Clouds ← `wind` |
+| Night | Dark gradient, star field, treeline | Moon ← `owls`; Aurora ← `choir_pad`; Stars ← `crickets` |
+| Dawn | Pink/lavender gradient, horizon glow | Mist ← `stream`; Birds ← `birds` |
+
+### Display modes
+
+```bash
+DISPLAY=:0 python3 artifacts/atmosphere-display/main.py          # X11
+SDL_VIDEODRIVER=kmsdrm python3 artifacts/atmosphere-display/main.py  # KMS/DRM (Pi Lite)
+SDL_VIDEODRIVER=offscreen python3 artifacts/atmosphere-display/main.py  # headless dev
+```
+
+### Dev workflow
+
+Workflow name: `artifacts/atmosphere-display: Visual Display`  
+Command: `SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy python3 artifacts/atmosphere-display/main.py --no-fullscreen --ws-port 8080`
 
 ## Codegen notes
 
