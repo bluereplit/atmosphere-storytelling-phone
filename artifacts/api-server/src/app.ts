@@ -66,8 +66,13 @@ const dashboardDist = resolve(
 );
 if (existsSync(dashboardDist)) {
   app.use(express.static(dashboardDist));
-  // SPA fallback — must be last; all API routes registered before this block
-  app.use((_req: Request, res: Response) => {
+  // SPA fallback — serve index.html for any path not handled above.
+  // Excludes /api, /ws, /docs so unrecognised API calls still return 404.
+  app.use((req: Request, res: Response, next) => {
+    const p = req.path;
+    if (p.startsWith("/api") || p.startsWith("/ws") || p.startsWith("/docs")) {
+      return next();
+    }
     res.sendFile(join(dashboardDist, "index.html"));
   });
   logger.info({ dashboardDist }, "Serving control dashboard from built assets");

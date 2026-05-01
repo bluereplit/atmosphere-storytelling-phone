@@ -90,6 +90,8 @@ function AttributeControl({ name, initialTempo }: { name: AttributeName; initial
   const attrState = state?.attributes?.[name];
   const enabled = attrState?.enabled ?? false;
   const volume = attrState?.volume ?? 0.5;
+  // Volume is stored as 0–1 in the backend; display as 0–100 for operators
+  const volumePct = Math.round(volume * 100);
 
   const queryClient = useQueryClient();
   const onMutation = useAttributeOn();
@@ -97,13 +99,13 @@ function AttributeControl({ name, initialTempo }: { name: AttributeName; initial
   const volumeMutation = useAttributeVolume();
   const tempoMutation = useAttributeTempo();
 
-  const [localVol, setLocalVol] = useState(volume);
+  const [localVol, setLocalVol] = useState(volumePct);
   const [localTempo, setLocalTempo] = useState(initialTempo);
 
   const volDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tempoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => { setLocalVol(volume); }, [volume]);
+  useEffect(() => { setLocalVol(volumePct); }, [volumePct]);
   // Re-sync if initialTempo changes (e.g. show reloads)
   useEffect(() => { setLocalTempo(initialTempo); }, [initialTempo]);
 
@@ -115,11 +117,11 @@ function AttributeControl({ name, initialTempo }: { name: AttributeName; initial
   };
 
   const handleVolumeChange = (val: number[]) => {
-    const newVal = val[0];
-    setLocalVol(newVal);
+    const newPct = val[0];
+    setLocalVol(newPct);
     if (volDebounceRef.current) clearTimeout(volDebounceRef.current);
     volDebounceRef.current = setTimeout(() => {
-      volumeMutation.mutate({ name, data: { value: newVal } }, {
+      volumeMutation.mutate({ name, data: { value: newPct / 100 } }, {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() })
       });
     }, 300);
@@ -151,7 +153,8 @@ function AttributeControl({ name, initialTempo }: { name: AttributeName; initial
         <div className="space-y-3 pt-2 border-t border-border/50">
           <div className="flex items-center gap-2">
             <Volume2 className="h-4 w-4 text-muted-foreground shrink-0" />
-            <Slider value={[localVol]} min={0} max={1} step={0.01} onValueChange={handleVolumeChange} className="flex-1" />
+            <Slider value={[localVol]} min={0} max={100} step={1} onValueChange={handleVolumeChange} className="flex-1" />
+            <span className="text-xs text-muted-foreground w-9 text-right shrink-0">{localVol}%</span>
           </div>
           {isTempo && (
             <div className="flex items-center gap-2">
