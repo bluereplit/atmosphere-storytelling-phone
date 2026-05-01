@@ -128,29 +128,49 @@ OVERLAY_FADE_TIME = 0.6       # seconds of fade animation
 
 class StatusOverlay:
     def __init__(self) -> None:
-        self._visible = False    # toggled by overlay_toggle event
-        self._text = ""
-        self._timer = 0.0        # counts down after show()
+        self._timer = 0.0        # counts down; overlay is visible while > 0
         self._alpha = 0.0
         self._font: "pygame.font.Font | None" = None
+        # Rich state fields
+        self._phase = ""
+        self._theme = ""
+        self._active_attrs: list[str] = []
 
-    def show(self, text: str) -> None:
-        self._text = text
+    def update_state(self, phase: str, theme: str, active_attrs: list[str]) -> None:
+        """Update the information the overlay will display (does not show it)."""
+        self._phase = phase
+        self._theme = theme
+        self._active_attrs = list(active_attrs)
+
+    def show(self, phase: str, theme: str, active_attrs: list[str]) -> None:
+        """Show the overlay with updated state and restart the fade timer."""
+        self.update_state(phase, theme, active_attrs)
         self._timer = OVERLAY_FADE_DURATION
 
     def toggle_visibility(self) -> None:
-        self._visible = not self._visible
+        """Trigger a timed transient show; the overlay auto-fades after OVERLAY_FADE_DURATION."""
+        self._timer = OVERLAY_FADE_DURATION
 
     def update(self, dt: float) -> None:
         if self._timer > 0:
             self._timer = max(0.0, self._timer - dt)
-        # alpha target: visible if either manually shown or timer running
-        target_alpha = 1.0 if (self._visible or self._timer > 0) else 0.0
+        target_alpha = 1.0 if self._timer > 0 else 0.0
         fade = dt / OVERLAY_FADE_TIME
         if self._alpha < target_alpha:
             self._alpha = min(1.0, self._alpha + fade)
         else:
             self._alpha = max(0.0, self._alpha - fade)
+
+    def _build_lines(self) -> list[str]:
+        lines = []
+        lines.append(f"PHASE   {self._phase.upper() if self._phase else '—'}")
+        lines.append(f"THEME   {self._theme if self._theme else '—'}")
+        if self._active_attrs:
+            sounds = ", ".join(self._active_attrs)
+        else:
+            sounds = "—"
+        lines.append(f"SOUNDS  {sounds}")
+        return lines
 
     def draw(self, surface) -> None:
         import pygame
@@ -158,18 +178,31 @@ class StatusOverlay:
             return
         if self._font is None:
             self._font = pygame.font.SysFont("monospace", 22, bold=True)
-        label = self._font.render(self._text, True, (240, 240, 240))
-        pad = 12
-        box_w = label.get_width() + pad * 2
-        box_h = label.get_height() + pad
+
+        lines = self._build_lines()
+        pad = 14
+        line_gap = 6
+
+        # Pre-render each line to find box dimensions
+        rendered = [self._font.render(line, True, (240, 240, 240)) for line in lines]
+        box_w = max(r.get_width() for r in rendered) + pad * 2
+        line_h = rendered[0].get_height()
+        box_h = len(rendered) * line_h + (len(rendered) - 1) * line_gap + pad * 2
+
         sw = surface.get_width()
         bx = sw - box_w - 20
         by = 18
+
         box = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
-        box.fill((0, 0, 0, int(self._alpha * 160)))
-        pygame.draw.rect(box, (80, 80, 80, int(self._alpha * 100)),
-                         (0, 0, box_w, box_h), 1, border_radius=6)
-        box.blit(label, (pad, pad // 2))
+        box.fill((0, 0, 0, int(self._alpha * 175)))
+        pygame.draw.rect(box, (100, 100, 100, int(self._alpha * 120)),
+                         (0, 0, box_w, box_h), 1, border_radius=8)
+
+        y = pad
+        for r in rendered:
+            box.blit(r, (pad, y))
+            y += line_h + line_gap
+
         surface.blit(box, (bx, by))
 
 
@@ -265,6 +298,7 @@ class AtmosphereApp:
         self._current_phase = "daytime"
         self._environment_theme = "forest"
         self._intensity = 1.0
+        self._enabled_attrs: set[str] = set()   # tracks which audio attributes are on
         self._running = False
         # Smooth standby transition: 0.0 = fully in scene, 1.0 = fully in standby
         self._standby_alpha = 0.0
@@ -320,7 +354,11 @@ class AtmosphereApp:
         renderer.set_theme(self._environment_theme)
         renderer.set_intensity(self._intensity)
         self._transition = TransitionManager(renderer)
-        self._overlay.show(self._current_phase)
+        self._overlay.show(
+            self._current_phase,
+            self._environment_theme,
+            sorted(self._enabled_attrs),
+        )
 
         log.info("Display %dx%d @ %dfps", w, h, self._args.fps)
 
@@ -392,14 +430,14 @@ class AtmosphereApp:
             intensity = msg.get("intensity", self._intensity)
 
             # Phase change → cross-fade to new renderer
-            if phase != self._current_phase:
+            phase_changed = phase != self._current_phase
+            if phase_changed:
                 self._current_phase = phase
                 new_renderer = make_renderer(phase)
                 # Carry over current theme/intensity so visuals don't flash
                 new_renderer.set_theme(self._environment_theme)
                 new_renderer.set_intensity(self._intensity)
                 self._transition.transition_to(new_renderer)
-                self._overlay.show(phase.upper())
 
             # Environment theme change → update colour tint on active renderer(s)
             if theme != self._environment_theme:
@@ -411,13 +449,31 @@ class AtmosphereApp:
                 self._intensity = intensity
                 self._transition.set_intensity(intensity)
 
-            # Apply attribute states
+            # Apply attribute states and track which ones are enabled
             attrs = msg.get("attributes", {})
             for attr_name, attr_state in attrs.items():
                 enabled = attr_state.get("enabled", False) if isinstance(attr_state, dict) else False
                 self._transition.set_attribute(attr_name, enabled)
+                if enabled:
+                    self._enabled_attrs.add(attr_name)
+                else:
+                    self._enabled_attrs.discard(attr_name)
+
+            # Always keep overlay state current; show it on phase transitions
+            self._overlay.update_state(
+                self._current_phase,
+                self._environment_theme,
+                sorted(self._enabled_attrs),
+            )
+            if phase_changed:
+                self._overlay.show(
+                    self._current_phase,
+                    self._environment_theme,
+                    sorted(self._enabled_attrs),
+                )
 
         elif msg_type == "overlay_toggle":
+            # State is already current from the last "state" message
             self._overlay.toggle_visibility()
 
 
