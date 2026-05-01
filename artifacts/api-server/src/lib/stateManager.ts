@@ -302,8 +302,16 @@ export function startAudioEngine(show: ShowConfig): void {
     logger.warn("SuperCollider not ready — will start audio when SC is ready");
     return;
   }
-  themeNodeId = startThemeSynth(show.environmentTheme, effectiveAmp(1.0));
-  environmentTheme = show.environmentTheme;
+  // Resolve effective theme/intensity using per-scene override or show global,
+  // matching the semantics of initFromShow() and setPhase().
+  const initPhaseConfig = show.phases[currentPhase];
+  const effectiveTheme = initPhaseConfig?.environmentTheme ?? show.environmentTheme;
+  const effectiveIntensity = initPhaseConfig?.intensity ?? show.intensity;
+
+  environmentTheme = effectiveTheme;
+  intensity = effectiveIntensity;
+
+  themeNodeId = startThemeSynth(effectiveTheme, effectiveAmp(1.0));
 
   if (themeNodeId >= 0) {
     setSynth(themeNodeId, {

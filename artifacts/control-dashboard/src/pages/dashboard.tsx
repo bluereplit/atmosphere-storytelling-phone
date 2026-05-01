@@ -119,6 +119,13 @@ export default function Dashboard() {
         {/* Live state panel — always-visible stats bar */}
         <div className="flex items-center gap-4 px-3 py-2 bg-secondary/30 rounded-md border border-border/40 text-xs font-mono tracking-wider flex-wrap">
           <div className="flex items-center gap-2">
+            <span className="text-muted-foreground uppercase">Scene</span>
+            <span className={`font-semibold capitalize ${state?.currentPhase ? "text-primary" : "text-muted-foreground"}`}>
+              {state?.currentPhase ?? "—"}
+            </span>
+          </div>
+          <div className="w-px h-4 bg-border/60 hidden sm:block" />
+          <div className="flex items-center gap-2">
             <span className="text-muted-foreground uppercase">Theme</span>
             <span className={`font-semibold ${currentThemeLabel ? "text-foreground" : "text-muted-foreground"}`}>
               {currentThemeLabel ?? "—"}
