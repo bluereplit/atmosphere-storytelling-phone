@@ -433,16 +433,29 @@ class DawnRenderer(BaseRenderer):
         ])
 
     def _draw_animated(self, surface: pygame.Surface, w: int, h: int) -> None:
-        # Subtle horizon glow
+        # Subtle horizon glow — vectorised via numpy + surfarray.
+        # Replaces the old per-row pygame.draw.line loop (~glow_h calls/frame).
         glow_h = int(h * 0.10)
         glow_y = int(h * 0.72)
-        glow_surf = pygame.Surface((w, glow_h), pygame.SRCALPHA)
         pulse = 0.7 + 0.3 * math.sin(self._time * 0.25)
-        for y in range(glow_h):
-            t = 1.0 - y / max(1, glow_h - 1)
-            a = int(t * 55 * pulse)
-            pygame.draw.line(glow_surf, (255, 200, 120, a), (0, y), (w, y))
-        surface.blit(glow_surf, (0, glow_y))
+
+        # Alpha ramp: top row = full intensity, bottom row = transparent
+        t = np.linspace(1.0, 0.0, glow_h, dtype=np.float32)
+        alphas = np.clip(t * 55.0 * pulse, 0, 255).astype(np.uint8)  # (glow_h,)
+
+        # 1-px-wide SRCALPHA surface; set RGB channels and alpha via surfarray
+        thin = pygame.Surface((1, glow_h), pygame.SRCALPHA)
+        rgb_arr = pygame.surfarray.pixels3d(thin)   # shape (1, glow_h, 3)
+        rgb_arr[0, :, 0] = 255
+        rgb_arr[0, :, 1] = 200
+        rgb_arr[0, :, 2] = 120
+        del rgb_arr                                  # release surface lock
+        alpha_arr = pygame.surfarray.pixels_alpha(thin)  # shape (1, glow_h)
+        alpha_arr[0, :] = alphas
+        del alpha_arr                                # release surface lock
+
+        # Scale to full width (pure-C blit, no Python loop) then composite
+        surface.blit(pygame.transform.scale(thin, (w, glow_h)), (0, glow_y))
 
 
 # ─────────────────────────────────────────────────────────────
