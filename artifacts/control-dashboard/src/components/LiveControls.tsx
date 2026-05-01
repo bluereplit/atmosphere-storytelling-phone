@@ -3,6 +3,7 @@ import { useConnection } from "@/lib/ws-context";
 import {
   useSetEnvironmentTheme,
   useSetIntensity,
+  useSetPhaseParams,
   useAttributeOn,
   useAttributeOff,
   useAttributeVolume,
@@ -263,15 +264,44 @@ export function LiveControls() {
   const queryClient = useQueryClient();
   const themeMutation = useSetEnvironmentTheme();
   const intensityMutation = useSetIntensity();
+  const phaseParamsMutation = useSetPhaseParams();
 
   const [localIntensity, setLocalIntensity] = useState(state?.intensity ?? 0);
   const intensityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [localReverb, setLocalReverb] = useState(state?.phaseParams?.reverb ?? 0.3);
+  const [localLpfFreq, setLocalLpfFreq] = useState(state?.phaseParams?.lpfFreq ?? 8000);
+  const [localMasterPitch, setLocalMasterPitch] = useState(state?.phaseParams?.masterPitch ?? 0);
+  const reverbDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lpfFreqDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const masterPitchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (state?.intensity !== undefined) {
       setLocalIntensity(state.intensity);
     }
   }, [state?.intensity]);
+
+  useEffect(() => {
+    if (state?.phaseParams?.reverb !== undefined) setLocalReverb(state.phaseParams.reverb);
+  }, [state?.phaseParams?.reverb]);
+
+  useEffect(() => {
+    if (state?.phaseParams?.lpfFreq !== undefined) setLocalLpfFreq(state.phaseParams.lpfFreq);
+  }, [state?.phaseParams?.lpfFreq]);
+
+  useEffect(() => {
+    if (state?.phaseParams?.masterPitch !== undefined) setLocalMasterPitch(state.phaseParams.masterPitch);
+  }, [state?.phaseParams?.masterPitch]);
+
+  useEffect(() => {
+    return () => {
+      if (intensityDebounceRef.current) clearTimeout(intensityDebounceRef.current);
+      if (reverbDebounceRef.current) clearTimeout(reverbDebounceRef.current);
+      if (lpfFreqDebounceRef.current) clearTimeout(lpfFreqDebounceRef.current);
+      if (masterPitchDebounceRef.current) clearTimeout(masterPitchDebounceRef.current);
+    };
+  }, []);
 
   const handleThemeSelect = (theme: EnvironmentTheme) => {
     themeMutation.mutate({ theme }, {
@@ -285,6 +315,39 @@ export function LiveControls() {
     if (intensityDebounceRef.current) clearTimeout(intensityDebounceRef.current);
     intensityDebounceRef.current = setTimeout(() => {
       intensityMutation.mutate({ data: { value: newVal } }, {
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() })
+      });
+    }, 300);
+  };
+
+  const handleReverbChange = (val: number[]) => {
+    const newVal = val[0];
+    setLocalReverb(newVal);
+    if (reverbDebounceRef.current) clearTimeout(reverbDebounceRef.current);
+    reverbDebounceRef.current = setTimeout(() => {
+      phaseParamsMutation.mutate({ data: { reverb: newVal } }, {
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() })
+      });
+    }, 300);
+  };
+
+  const handleLpfFreqChange = (val: number[]) => {
+    const newVal = val[0];
+    setLocalLpfFreq(newVal);
+    if (lpfFreqDebounceRef.current) clearTimeout(lpfFreqDebounceRef.current);
+    lpfFreqDebounceRef.current = setTimeout(() => {
+      phaseParamsMutation.mutate({ data: { lpfFreq: newVal } }, {
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() })
+      });
+    }, 300);
+  };
+
+  const handleMasterPitchChange = (val: number[]) => {
+    const newVal = val[0];
+    setLocalMasterPitch(newVal);
+    if (masterPitchDebounceRef.current) clearTimeout(masterPitchDebounceRef.current);
+    masterPitchDebounceRef.current = setTimeout(() => {
+      phaseParamsMutation.mutate({ data: { masterPitch: newVal } }, {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() })
       });
     }, 300);
@@ -318,6 +381,60 @@ export function LiveControls() {
         </CardHeader>
         <CardContent className="flex items-center h-12">
           <Slider value={[localIntensity]} min={0} max={1} step={0.01} onValueChange={handleIntensityChange} className="flex-1" />
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50 bg-card/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-mono tracking-widest text-muted-foreground uppercase">
+            Phase Parameters
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Reverb</span>
+              <span className="text-xs font-mono text-primary">{Math.round(localReverb * 100)}%</span>
+            </div>
+            <Slider
+              value={[localReverb]}
+              min={0}
+              max={1}
+              step={0.01}
+              onValueChange={handleReverbChange}
+              className="flex-1"
+            />
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">LPF Cutoff</span>
+              <span className="text-xs font-mono text-primary">{Math.round(localLpfFreq)} Hz</span>
+            </div>
+            <Slider
+              value={[localLpfFreq]}
+              min={500}
+              max={20000}
+              step={100}
+              onValueChange={handleLpfFreqChange}
+              className="flex-1"
+            />
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Pitch Shift</span>
+              <span className="text-xs font-mono text-primary">
+                {localMasterPitch > 0 ? `+${localMasterPitch}` : localMasterPitch} st
+              </span>
+            </div>
+            <Slider
+              value={[localMasterPitch]}
+              min={-12}
+              max={12}
+              step={0.5}
+              onValueChange={handleMasterPitchChange}
+              className="flex-1"
+            />
+          </div>
         </CardContent>
       </Card>
 

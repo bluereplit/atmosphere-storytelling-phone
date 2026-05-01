@@ -356,6 +356,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/MuteResponse"
 
+  /phase/params:
+    post:
+      operationId: setPhaseParams
+      tags: [phase]
+      summary: Set live phase synthesis parameters (reverb, LPF, pitch)
+      description: >
+        Updates one or more per-phase synthesis parameters (reverb wet mix,
+        low-pass filter cutoff, and master pitch shift) for the currently active
+        phase. Changes are applied immediately to the audio engine but are
+        ephemeral — they are not written to show.json.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhaseParamsBody"
+      responses:
+        "200":
+          description: Phase params updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhaseParamsBody"
+        "400":
+          description: Invalid params
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /show:
     get:
       operationId: getShow
@@ -736,6 +766,26 @@ components:
           type: boolean
       required:
         - muted
+
+    PhaseParamsBody:
+      type: object
+      description: Partial phase synthesis parameters for live update
+      properties:
+        reverb:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Reverb wet mix (0 = dry, 1 = full wet)
+        lpfFreq:
+          type: number
+          minimum: 500
+          maximum: 20000
+          description: Low-pass filter cutoff frequency in Hz
+        masterPitch:
+          type: number
+          minimum: -12
+          maximum: 12
+          description: Master pitch shift in semitones
 
     OverlayToggleResult:
       type: object

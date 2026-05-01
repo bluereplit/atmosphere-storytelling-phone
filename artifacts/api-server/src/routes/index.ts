@@ -7,6 +7,7 @@ import attributesRouter from "./attributes.js";
 import audioRouter from "./audio.js";
 import { makeShowRouter } from "./show.js";
 import { makeDisplayRouter } from "./display.js";
+import phaseRouter from "./phase.js";
 import type { ShowConfig } from "../lib/themes.config.js";
 
 export function initRouter(
@@ -21,6 +22,7 @@ export function initRouter(
   router.use(environmentRouter);
   router.use(attributesRouter);
   router.use(audioRouter);
+  router.use(phaseRouter);
   router.use(makeShowRouter(getShow, setShow));
   router.use(makeDisplayRouter());
 

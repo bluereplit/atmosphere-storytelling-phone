@@ -235,3 +235,12 @@ export interface OverlayToggleResult {
   /** Unix timestamp (ms) of the toggle event */
   timestamp: number;
 }
+
+export interface PhaseParamsBody {
+  /** Reverb wet mix (0 = dry, 1 = full wet) */
+  reverb?: number;
+  /** Low-pass filter cutoff frequency in Hz (500–20000) */
+  lpfFreq?: number;
+  /** Master pitch shift in semitones (-12 to +12) */
+  masterPitch?: number;
+}

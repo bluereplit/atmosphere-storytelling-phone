@@ -283,6 +283,26 @@ export function setAttributeExtra(name: AttributeName, key: string, value: numbe
   emit();
 }
 
+export function setPhaseParams(params: Partial<PhaseParams>): void {
+  if (params.reverb !== undefined) {
+    currentPhaseParams.reverb = Math.max(0, Math.min(1, params.reverb));
+  }
+  if (params.lpfFreq !== undefined) {
+    currentPhaseParams.lpfFreq = Math.max(500, Math.min(20000, params.lpfFreq));
+  }
+  if (params.masterPitch !== undefined) {
+    currentPhaseParams.masterPitch = Math.max(-12, Math.min(12, params.masterPitch));
+  }
+  if (isSuperColliderReady() && themeNodeId >= 0) {
+    setSynth(themeNodeId, {
+      reverb:      currentPhaseParams.reverb,
+      lpfFreq:     currentPhaseParams.lpfFreq,
+      masterPitch: currentPhaseParams.masterPitch,
+    });
+  }
+  emit();
+}
+
 export function setMuted(value: boolean): void {
   muted = value;
   if (themeNodeId >= 0 && isSuperColliderReady()) {
