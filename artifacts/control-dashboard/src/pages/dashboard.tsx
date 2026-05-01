@@ -14,59 +14,140 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { VolumeX, Volume2, Monitor, SkipForward, ChevronDown, ChevronRight, Keyboard, X } from "lucide-react";
+import { VolumeX, Volume2, Monitor, SkipForward, ChevronDown, ChevronRight, Keyboard, X, RotateCcw, Pencil } from "lucide-react";
 import { LiveControls } from "@/components/LiveControls";
 import { ShowDesigner } from "@/components/ShowDesigner";
 import { OSCReference } from "@/components/OSCReference";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { useKeyBindings, DEFAULT_KEY_BINDINGS, type KeyBindings } from "@/hooks/use-key-bindings";
 
 const PHASES: Phase[] = ["daytime", "evening", "night", "dawn"];
 
-const SHORTCUT_LEGEND = [
-  { keys: ["1"], label: "Daytime" },
-  { keys: ["2"], label: "Evening" },
-  { keys: ["3"], label: "Night" },
-  { keys: ["4"], label: "Dawn" },
-  { keys: ["Space", "N"], label: "Next scene" },
-  { keys: ["M"], label: "Toggle mute" },
-  { keys: ["O"], label: "Toggle overlay" },
+type ActionId = keyof KeyBindings;
+
+const ACTION_ROWS: { id: ActionId; label: string; note?: string }[] = [
+  { id: "phase1", label: "Daytime" },
+  { id: "phase2", label: "Evening" },
+  { id: "phase3", label: "Night" },
+  { id: "phase4", label: "Dawn" },
+  { id: "next", label: "Next scene", note: "Space also works" },
+  { id: "mute", label: "Toggle mute" },
+  { id: "overlay", label: "Toggle overlay" },
 ];
 
-function ShortcutLegend({ open, onClose }: { open: boolean; onClose: () => void }) {
+function displayKey(key: string): string {
+  if (key === " ") return "Space";
+  if (key.length === 1) return key.toUpperCase();
+  return key;
+}
+
+function ShortcutPanel({
+  open,
+  onClose,
+  bindings,
+  onUpdateBinding,
+  onReset,
+}: {
+  open: boolean;
+  onClose: () => void;
+  bindings: KeyBindings;
+  onUpdateBinding: (action: ActionId, key: string) => void;
+  onReset: () => void;
+}) {
+  const [listening, setListening] = useState<ActionId | null>(null);
+  const isDefault = JSON.stringify(bindings) === JSON.stringify(DEFAULT_KEY_BINDINGS);
+
+  useEffect(() => {
+    if (!listening) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.key === "Escape") {
+        setListening(null);
+        return;
+      }
+
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const action = listening;
+      if (!action) return;
+      onUpdateBinding(action, key);
+      setListening(null);
+    }
+
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [listening, onUpdateBinding]);
+
   if (!open) return null;
+
   return (
-    <div className="absolute right-0 top-full mt-2 z-50 bg-card border border-border rounded-lg shadow-lg p-4 min-w-[200px] animate-in fade-in slide-in-from-top-2 duration-200">
+    <div className="absolute right-0 top-full mt-2 z-50 bg-card border border-border rounded-lg shadow-lg p-4 w-72 animate-in fade-in slide-in-from-top-2 duration-200">
       <div className="flex items-center justify-between mb-3">
         <span className="font-mono tracking-widest uppercase text-xs font-semibold text-muted-foreground">
           Shortcuts
         </span>
-        <button
-          onClick={onClose}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Close shortcuts"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onReset}
+            disabled={isDefault}
+            title="Restore defaults"
+            className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <RotateCcw className="w-3 h-3" />
+            Reset
+          </button>
+          <button
+            onClick={() => { setListening(null); onClose(); }}
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close shortcuts"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
-      <div className="space-y-1.5">
-        {SHORTCUT_LEGEND.map(({ keys, label }) => (
-          <div key={label} className="flex items-center justify-between gap-4">
-            <span className="text-xs text-muted-foreground">{label}</span>
-            <div className="flex items-center gap-1">
-              {keys.map((k) => (
-                <kbd
-                  key={k}
-                  className="inline-flex items-center px-1.5 py-0.5 rounded border border-border bg-secondary text-xs font-mono text-foreground leading-none"
+
+      <div className="space-y-1">
+        {ACTION_ROWS.map(({ id, label, note }) => {
+          const isListening = listening === id;
+          return (
+            <div key={id} className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md transition-colors ${isListening ? "bg-primary/10 border border-primary/30" : "hover:bg-muted/40"}`}>
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs text-foreground">{label}</span>
+                {note && <span className="text-[10px] text-muted-foreground/60">{note}</span>}
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isListening ? (
+                  <span className="text-[10px] font-mono text-primary animate-pulse">
+                    Press a key…
+                  </span>
+                ) : (
+                  <kbd className="inline-flex items-center px-1.5 py-0.5 rounded border border-border bg-secondary text-xs font-mono text-foreground leading-none min-w-[1.75rem] justify-center">
+                    {displayKey(bindings[id])}
+                  </kbd>
+                )}
+                <button
+                  onClick={() => setListening(isListening ? null : id)}
+                  title={isListening ? "Cancel" : "Remap key"}
+                  className={`p-1 rounded transition-colors ${isListening ? "text-primary hover:text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  aria-label={isListening ? "Cancel remapping" : `Remap ${label}`}
                 >
-                  {k}
-                </kbd>
-              ))}
+                  {isListening ? <X className="w-3 h-3" /> : <Pencil className="w-3 h-3" />}
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
+
       <p className="mt-3 text-[10px] text-muted-foreground/60 font-mono">
-        Disabled when typing in inputs
+        Click <Pencil className="w-2.5 h-2.5 inline" /> then press any key to remap. Bindings are saved automatically.
+      </p>
+      <p className="mt-1 text-[10px] text-muted-foreground/60 font-mono">
+        Disabled when typing in inputs.
       </p>
     </div>
   );
@@ -77,6 +158,8 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const [oscOpen, setOscOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  const { bindings, updateBinding, resetBindings } = useKeyBindings();
 
   const muteMutation = useAudioMute();
   const unmuteMutation = useAudioUnmute();
@@ -148,6 +231,7 @@ export default function Dashboard() {
     onMuteToggle: handleMuteToggle,
     onOverlayToggle: handleOverlayToggle,
     onFlash: showFlash,
+    keyBindings: bindings,
   });
 
   const attrs = state?.attributes ?? {};
@@ -182,7 +266,7 @@ export default function Dashboard() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* Keyboard shortcut legend toggle */}
+            {/* Keyboard shortcut legend / remap toggle */}
             <div className="relative">
               <Button
                 variant="ghost"
@@ -194,7 +278,13 @@ export default function Dashboard() {
                 <Keyboard className="w-4 h-4 mr-2" />
                 Keys
               </Button>
-              <ShortcutLegend open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+              <ShortcutPanel
+                open={shortcutsOpen}
+                onClose={() => setShortcutsOpen(false)}
+                bindings={bindings}
+                onUpdateBinding={updateBinding}
+                onReset={resetBindings}
+              />
             </div>
             <Button
               variant="outline"
