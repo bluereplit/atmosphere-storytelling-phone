@@ -200,7 +200,8 @@ class StandbyScreen:
 #  App
 # ─────────────────────────────────────────────────────────────
 
-STANDBY_DELAY = 2.0    # seconds of disconnect before showing standby screen
+STANDBY_DELAY = 2.0        # seconds of disconnect before entering standby
+STANDBY_FADE_SPEED = 1.5   # standby overlay reaches full opacity in ~0.67 s
 
 
 class AtmosphereApp:
@@ -213,6 +214,8 @@ class AtmosphereApp:
         self._overlay = StatusOverlay()
         self._current_phase = "daytime"
         self._running = False
+        # Smooth standby transition: 0.0 = fully in scene, 1.0 = fully in standby
+        self._standby_alpha = 0.0
 
     # ----------------------------------------------------------------- lifecycle
 
@@ -277,16 +280,25 @@ class AtmosphereApp:
             self._drain_ws_queue(w, h)
 
             disc = self._ws_client.seconds_since_disconnect
-            in_standby = disc is not None and disc >= STANDBY_DELAY
+            want_standby = disc is not None and disc >= STANDBY_DELAY
+
+            # Smoothly ramp standby blend in/out
+            if want_standby:
+                self._standby_alpha = min(1.0, self._standby_alpha + STANDBY_FADE_SPEED * dt)
+            else:
+                self._standby_alpha = max(0.0, self._standby_alpha - STANDBY_FADE_SPEED * dt)
 
             self._standby.update(dt)
             self._transition.update(dt, w, h)
             self._overlay.update(dt)
 
-            if in_standby:
-                self._standby.draw(screen)
-            else:
-                self._transition.draw(screen)
+            # Draw scene, then blend standby overlay on top when transitioning
+            self._transition.draw(screen)
+            if self._standby_alpha > 0.001:
+                standby_surf = pygame.Surface((w, h))
+                self._standby.draw(standby_surf)
+                standby_surf.set_alpha(int(self._standby_alpha * 255))
+                screen.blit(standby_surf, (0, 0))
 
             self._overlay.draw(screen)
             pygame.display.flip()
@@ -319,6 +331,11 @@ class AtmosphereApp:
         msg_type = msg.get("type")
 
         if msg_type == "state":
+            # NOTE: The visual renderer tracks `currentPhase` (the time-of-day scene:
+            # daytime / evening / night / dawn), NOT `environmentTheme` (the 13 audio
+            # themes: forest, ocean, cave, …).  The visual scene corresponds to phase;
+            # environment theme is an audio-only concept in this version. The field is
+            # named `currentPhase` in both the backend WsStateEvent and this renderer.
             phase = msg.get("currentPhase", self._current_phase)
             if phase != self._current_phase:
                 self._current_phase = phase
