@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronRight, Activity, Volume2, Waves } from "lucide-react";
+import { StorytellerVoice } from "./StorytellerVoice";
 
 const ATTRIBUTE_GROUPS: Record<string, string[]> = {
   "Nature": ["crickets", "birds", "wind", "ocean_waves", "rain", "frogs", "stream", "waterfall"],
@@ -487,6 +488,8 @@ export function LiveControls() {
           <AttributeGroup key={title} title={title} attributes={attributes} attributeTempos={attributeTempos} />
         ))}
       </div>
+
+      <StorytellerVoice />
     </div>
   );
 }

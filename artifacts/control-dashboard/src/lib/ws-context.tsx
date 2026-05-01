@@ -50,6 +50,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
                 attributes: data.attributes ?? base.attributes ?? {},
                 muted: data.muted ?? base.muted ?? false,
                 scReady: data.scReady ?? base.scReady ?? false,
+                voice: data.voice ?? base.voice ?? { active: false, gain: 0.8, reverb: 0.2 },
               };
             });
           }

@@ -20,6 +20,14 @@ author = "agent"
 task = "workflow.run"
 args = "artifacts/atmosphere-display: Visual Display"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "API Server"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Control Dashboard"
+
 [[workflows.workflow]]
 name = "artifacts/atmosphere-display: Visual Display"
 author = "agent"
@@ -30,6 +38,30 @@ args = "SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy python3 artifacts/atmosp
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow]]
+name = "API Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
+waitForPort = 8080
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "Control Dashboard"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=20266 BASE_PATH=/ pnpm --filter @workspace/control-dashboard run dev"
+waitForPort = 20266
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [agent]
 stack = "PNPM_WORKSPACE"

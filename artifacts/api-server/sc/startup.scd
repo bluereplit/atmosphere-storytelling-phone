@@ -7,7 +7,8 @@ var scDir = thisProcess.nowExecutingPath.dirname;
 s = Server.local;
 
 // Configure server for headless Raspberry Pi operation
-Server.default.options.numInputBusChannels = 0;
+// numInputBusChannels = 2 to receive voice from the ALSA loopback device
+Server.default.options.numInputBusChannels = 2;
 Server.default.options.numOutputBusChannels = 2;
 Server.default.options.maxNodes = 512;
 Server.default.options.maxSynthDefs = 256;
@@ -31,6 +32,7 @@ s.waitForBoot({
     // Load SynthDef files — each calls SynthDef(\name, { ... }).add
     (scDir +/+ "envThemes.scd").load;
     (scDir +/+ "attributes.scd").load;
+    (scDir +/+ "voice.scd").load;
 
     // s.sync waits until the server has acknowledged all pending SynthDef.add messages
     s.sync;

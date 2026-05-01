@@ -8,6 +8,7 @@ import pinoHttp from "pino-http";
 import { initRouter } from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 import { initWebSocketServer, broadcastState, broadcastOverlayToggle } from "./lib/wsServer.js";
+import { initVoiceWebSocket, closeVoiceWebSocket } from "./lib/voiceRelay.js";
 import { initOscServer } from "./lib/oscServer.js";
 import { startSuperCollider, stopSuperCollider, onEverySuperColliderReady, onEverySuperColliderExit } from "./lib/supercollider.js";
 import {
@@ -82,6 +83,7 @@ export function createAppServer(): Server {
   const server = createServer(app);
 
   initWebSocketServer(server);
+  initVoiceWebSocket(server);
 
   onStateChange((state) => {
     broadcastState(state);
@@ -114,6 +116,7 @@ export function createAppServer(): Server {
     logger.info("Shutting down...");
     teardown();
     stopSuperCollider();
+    closeVoiceWebSocket();
     saveShow(currentShow);
     process.exit(0);
   }

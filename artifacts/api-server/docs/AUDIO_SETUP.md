@@ -126,7 +126,70 @@ SynthDefs loaded
 
 ---
 
-## 6. Auto-launch on Boot (systemd)
+## 6. Storyteller Voice — ALSA Loopback Setup
+
+The **Storyteller Voice** feature lets the narrator's microphone be mixed directly into the SuperCollider soundscape.  The browser dashboard captures the mic, streams audio to the API server over WebSocket, and the server pipes it into SuperCollider via an ALSA virtual loopback device.
+
+### How it works
+
+```
+Browser mic → WebSocket /ws/voice → aplay → ALSA Loopback (playback side)
+                                                    ↓
+                                      SuperCollider SoundIn (capture side)
+```
+
+### Enable the ALSA loopback
+
+Run the included setup script once after each boot (or persist it across reboots):
+
+```bash
+sudo bash artifacts/api-server/scripts/setup-alsa-loopback.sh
+```
+
+To load the loopback module automatically at boot:
+```bash
+echo snd-aloop | sudo tee -a /etc/modules
+```
+
+### Configure SuperCollider to use the loopback
+
+SuperCollider needs to read from the **capture side** of the loopback (card `Loopback`, device 1).  The easiest way is to set `numInputBusChannels = 2` (already done in `startup.scd`) and launch SuperCollider with the loopback card.
+
+To specify a separate input device for SuperCollider without changing the output, create a virtual ALSA device in `~/.asoundrc` that uses `asym`:
+
+```
+# ~/.asoundrc — asymmetric device: Loopback capture + main output
+pcm.atmosphere_io {
+    type asym
+    playback.pcm "hw:0,0"   # your main audio output card
+    capture.pcm  "hw:Loopback,1"
+}
+ctl.atmosphere_io {
+    type hw
+    card 0
+}
+```
+
+Then set SuperCollider's device to `atmosphere_io` by editing `startup.scd`:
+```supercollider
+Server.default.options.device = "atmosphere_io";
+```
+
+Or use the `VOICE_LOOPBACK_DEVICE` environment variable to change which ALSA device `aplay` uses on the playback side:
+```bash
+export VOICE_LOOPBACK_DEVICE="hw:Loopback,0"   # default
+```
+
+### Install alsa-utils
+
+`aplay` must be installed on the Pi:
+```bash
+sudo apt install -y alsa-utils
+```
+
+---
+
+## 7. Auto-launch on Boot (systemd)
 
 Create a systemd service to start the system automatically:
 
@@ -171,7 +234,7 @@ journalctl -u atmosphere -f
 
 ---
 
-## 7. Launch the Visual Display on Boot
+## 8. Launch the Visual Display on Boot
 
 The visual display (Python + pygame) runs separately and connects to the system's HDMI output.
 

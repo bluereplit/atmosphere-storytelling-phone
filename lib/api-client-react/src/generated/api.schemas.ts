@@ -124,6 +124,20 @@ export interface PhaseParams {
 
 export type LiveStateAttributes = { [key: string]: AttributeState };
 
+export interface VoiceState {
+  active: boolean;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  gain: number;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  reverb: number;
+}
+
 export interface LiveState {
   /** Unix timestamp (ms) of this state snapshot */
   timestamp: number;
@@ -138,6 +152,7 @@ export interface LiveState {
   attributes: LiveStateAttributes;
   muted: boolean;
   scReady: boolean;
+  voice: VoiceState;
 }
 
 export type AudioStatusSupercollider =

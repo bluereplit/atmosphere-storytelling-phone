@@ -17,6 +17,12 @@ import {
 } from "./supercollider.js";
 import { logger } from "./logger.js";
 
+export interface VoiceState {
+  active: boolean;
+  gain: number;
+  reverb: number;
+}
+
 export interface LiveState {
   timestamp: number;
   currentPhase: Phase;
@@ -26,6 +32,7 @@ export interface LiveState {
   attributes: Record<AttributeName, { enabled: boolean; volume: number }>;
   muted: boolean;
   scReady: boolean;
+  voice: VoiceState;
 }
 
 type StateChangeCallback = (state: LiveState) => void;
@@ -49,6 +56,11 @@ const attrNodeIds = new Map<AttributeName, number>();
 const attrEnabled = new Map<AttributeName, boolean>();
 const attrVolumes = new Map<AttributeName, number>();
 const attrExtras = new Map<AttributeName, Record<string, number>>();
+
+let voiceActive: boolean = false;
+let voiceGain: number = 0.8;
+let voiceReverb: number = 0.2;
+let voiceNodeId: number = -1;
 
 const listeners: StateChangeCallback[] = [];
 
@@ -80,6 +92,7 @@ export function getLiveState(): LiveState {
     attributes,
     muted,
     scReady: isSuperColliderReady(),
+    voice: { active: voiceActive, gain: voiceGain, reverb: voiceReverb },
   };
 }
 
@@ -415,12 +428,51 @@ export function applyShowConfig(show: ShowConfig): void {
   emit();
 }
 
+export function startVoice(): void {
+  if (voiceActive) return;
+  voiceActive = true;
+  if (isSuperColliderReady()) {
+    voiceNodeId = addSynth("voiceMix", { amp: voiceGain, reverb: voiceReverb });
+    logger.info({ voiceNodeId }, "Voice mix synth started");
+  }
+  emit();
+}
+
+export function stopVoice(): void {
+  if (!voiceActive) return;
+  voiceActive = false;
+  if (voiceNodeId >= 0 && isSuperColliderReady()) {
+    setSynth(voiceNodeId, { amp: 0, fadeTime: 0.5 });
+    const nodeToFree = voiceNodeId;
+    setTimeout(() => {
+      freeSynth(nodeToFree);
+    }, 700);
+    voiceNodeId = -1;
+  }
+  emit();
+}
+
+export function setVoiceParams(gain: number, reverb: number): void {
+  voiceGain = Math.max(0, Math.min(1, gain));
+  voiceReverb = Math.max(0, Math.min(1, reverb));
+  if (voiceNodeId >= 0 && isSuperColliderReady()) {
+    setSynth(voiceNodeId, { amp: voiceActive ? voiceGain : 0, reverb: voiceReverb });
+  }
+  emit();
+}
+
+export function getVoiceState(): VoiceState {
+  return { active: voiceActive, gain: voiceGain, reverb: voiceReverb };
+}
+
 export function teardown(): void {
   freeAllSynths();
   attrNodeIds.clear();
   attrEnabled.clear();
   themeNodeId = -1;
   oldThemeNodeId = -1;
+  voiceNodeId = -1;
+  voiceActive = false;
   if (themeTransitionTimer) {
     clearTimeout(themeTransitionTimer);
     themeTransitionTimer = null;
