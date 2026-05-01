@@ -7,7 +7,7 @@ Self-hosted storytelling atmosphere system for Raspberry Pi. pnpm workspace mono
 ## Project Goal
 
 Build a self-hosted real-time storytelling atmosphere system with:
-1. **Node.js/Express backend** — REST + WebSocket + OSC APIs, 5-phase state machine, 13 environment themes, 38 toggleable audio attributes synthesized via SuperCollider
+1. **Node.js/Express backend** — REST + WebSocket + OSC APIs, 4-phase state machine (daytime/evening/night/dawn), 13 environment themes, 38 toggleable audio attributes synthesized via SuperCollider
 2. **Python+pygame visual display** — fullscreen native GPU output over HDMI (complete)
 3. **React+Vite web control dashboard** — control panel for live use (complete)
 
