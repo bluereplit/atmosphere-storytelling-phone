@@ -151,9 +151,15 @@ Command: `SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy python3 artifacts/atmo
 - **Debounce**: Volume and intensity sliders debounce 250ms before sending API calls
 - **Dark theme**: `.dark` added to `<html>` on mount; amber/gold accent palette
 
-### Proxy routing
+### Serving architecture
 
-API server (`artifacts/api-server`) handles `/api`, `/ws`, `/docs` — all routed through its service in `artifact.toml`.
+**Development (Replit)**: Vite dev server (port 20266) serves the dashboard at `/` via the artifact proxy. The API server (port 8080) handles `/api`, `/ws`, `/docs` on its own port.
+
+**Production / Raspberry Pi deployment**:
+1. Build the dashboard: `pnpm --filter @workspace/control-dashboard run build`
+2. The API server detects the built output at `artifacts/control-dashboard/dist/public/` (or override via `DASHBOARD_DIST_DIR` env var) and serves it as static files at `/`. The Express server self-hosts both the API and the dashboard on a single port — no separate reverse proxy needed.
+
+This means on a Raspberry Pi you run only one Node.js process (`pnpm --filter @workspace/api-server run start`) and visit `http://<pi-ip>:8080/` to access the dashboard.
 
 ## Codegen notes
 

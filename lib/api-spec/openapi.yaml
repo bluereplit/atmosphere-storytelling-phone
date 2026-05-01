@@ -573,6 +573,10 @@ components:
 
     PhaseConfig:
       type: object
+      description: >
+        Per-scene attribute enables and synthesis parameters. The optional
+        `environmentTheme` and `intensity` fields act as per-scene overrides;
+        when absent, the show-level defaults apply during transitions.
       properties:
         attributes:
           type: object
@@ -580,6 +584,20 @@ components:
             type: boolean
         params:
           $ref: "#/components/schemas/PhaseParams"
+        environmentTheme:
+          $ref: "#/components/schemas/EnvironmentTheme"
+          description: >
+            Optional per-scene environment theme override. When set, this theme
+            is applied instead of ShowConfig.environmentTheme when transitioning
+            to this phase.
+        intensity:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: >
+            Optional per-scene intensity override (0.0–1.0). When set, this
+            value is applied instead of ShowConfig.intensity when transitioning
+            to this phase.
       required:
         - attributes
         - params

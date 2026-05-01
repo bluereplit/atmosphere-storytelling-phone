@@ -1,7 +1,8 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response } from "express";
 import { createServer, type Server } from "http";
-import { join, dirname } from "path";
+import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
+import { existsSync } from "fs";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { initRouter } from "./routes/index.js";
@@ -53,6 +54,24 @@ const docsDir = join(__dirname, "../docs");
 app.use("/docs", express.static(docsDir));
 
 app.use("/api", initRouter(getShow, setShow));
+
+// Serve the control dashboard as static assets at root "/" when the production
+// build exists. This allows the API server to self-host the dashboard on a
+// Raspberry Pi without a separate reverse proxy (e.g. after running
+// `pnpm --filter @workspace/control-dashboard run build`).
+// In Replit development the Vite dev server handles "/" via the artifact proxy.
+const dashboardDist = resolve(
+  process.env.DASHBOARD_DIST_DIR ??
+  join(__dirname, "../../control-dashboard/dist/public")
+);
+if (existsSync(dashboardDist)) {
+  app.use(express.static(dashboardDist));
+  // SPA fallback — must be last; all API routes registered before this block
+  app.use((_req: Request, res: Response) => {
+    res.sendFile(join(dashboardDist, "index.html"));
+  });
+  logger.info({ dashboardDist }, "Serving control dashboard from built assets");
+}
 
 export function createAppServer(): Server {
   const server = createServer(app);
