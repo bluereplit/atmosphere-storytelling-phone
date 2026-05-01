@@ -154,8 +154,9 @@ export function addSynth(defName: string, params: Record<string, number> = {}): 
   const nodeId = nodeIdCounter++;
   liveNodes.set(nodeId, defName);
 
+  const mergedParams: Record<string, number> = { outBus: 0, ...params };
   const flatParams: (string | number)[] = [];
-  for (const [k, v] of Object.entries(params)) {
+  for (const [k, v] of Object.entries(mergedParams)) {
     flatParams.push(k, v);
   }
 

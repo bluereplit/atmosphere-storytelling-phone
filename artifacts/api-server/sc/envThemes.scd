@@ -8,7 +8,7 @@
 (
 
 // --- FOREST ---
-SynthDef(\env_forest, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+SynthDef(\env_forest, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0, outBus=0|
     var intLag = Lag.kr(intensity, 2.0);
     var env, sig, drone, leaves, water, depth;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
@@ -43,12 +43,12 @@ SynthDef(\env_forest, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
     sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
-    Out.ar(0, sig);
+    Out.ar(outBus, sig);
 }).add;
 
 
 // --- OCEAN ---
-SynthDef(\env_ocean, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+SynthDef(\env_ocean, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0, outBus=0|
     var intLag = Lag.kr(intensity, 2.0);
     var env, sig, wave, drone, spray;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
@@ -76,12 +76,12 @@ SynthDef(\env_ocean, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, g
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
     sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
-    Out.ar(0, sig);
+    Out.ar(outBus, sig);
 }).add;
 
 
 // --- MOUNTAIN ---
-SynthDef(\env_mountain, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+SynthDef(\env_mountain, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0, outBus=0|
     var intLag = Lag.kr(intensity, 2.0);
     var env, sig, drone, wind, sparse;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
@@ -112,12 +112,12 @@ SynthDef(\env_mountain, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
     sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
-    Out.ar(0, sig);
+    Out.ar(outBus, sig);
 }).add;
 
 
 // --- DESERT ---
-SynthDef(\env_desert, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+SynthDef(\env_desert, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0, outBus=0|
     var intLag = Lag.kr(intensity, 2.0);
     var env, sig, sub, staticNoise, heat;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
@@ -144,12 +144,12 @@ SynthDef(\env_desert, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
     sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
-    Out.ar(0, sig);
+    Out.ar(outBus, sig);
 }).add;
 
 
 // --- CITY ---
-SynthDef(\env_city, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+SynthDef(\env_city, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0, outBus=0|
     var intLag = Lag.kr(intensity, 2.0);
     var env, sig, hum, rumble, crowd;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
@@ -178,12 +178,12 @@ SynthDef(\env_city, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, ga
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
     sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
-    Out.ar(0, sig);
+    Out.ar(outBus, sig);
 }).add;
 
 
 // --- MYSTICAL ---
-SynthDef(\env_mystical, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+SynthDef(\env_mystical, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0, outBus=0|
     var intLag = Lag.kr(intensity, 2.0);
     var env, sig, drone, bells, shimmer;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
@@ -219,12 +219,12 @@ SynthDef(\env_mystical, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
     sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
-    Out.ar(0, sig);
+    Out.ar(outBus, sig);
 }).add;
 
 
 // --- MEDIEVAL ---
-SynthDef(\env_medieval, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+SynthDef(\env_medieval, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0, outBus=0|
     var intLag = Lag.kr(intensity, 2.0);
     var env, sig, drone, perc;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
@@ -251,12 +251,12 @@ SynthDef(\env_medieval, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
     sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
-    Out.ar(0, sig);
+    Out.ar(outBus, sig);
 }).add;
 
 
 // --- UNDERWATER ---
-SynthDef(\env_underwater, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+SynthDef(\env_underwater, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0, outBus=0|
     var intLag = Lag.kr(intensity, 2.0);
     var env, sig, pressure, whomp, whale;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
@@ -288,12 +288,12 @@ SynthDef(\env_underwater, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
     sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
-    Out.ar(0, sig);
+    Out.ar(outBus, sig);
 }).add;
 
 
 // --- COSMIC ---
-SynthDef(\env_cosmic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+SynthDef(\env_cosmic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0, outBus=0|
     var intLag = Lag.kr(intensity, 2.0);
     var env, sig, pad, radiation, sparse;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
@@ -327,12 +327,12 @@ SynthDef(\env_cosmic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
     sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
-    Out.ar(0, sig);
+    Out.ar(outBus, sig);
 }).add;
 
 
 // --- CAVE ---
-SynthDef(\env_cave, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+SynthDef(\env_cave, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0, outBus=0|
     var intLag = Lag.kr(intensity, 2.0);
     var env, sig, sub, echo, drip;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
@@ -358,12 +358,12 @@ SynthDef(\env_cave, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, ga
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
     sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
-    Out.ar(0, sig);
+    Out.ar(outBus, sig);
 }).add;
 
 
 // --- ARCTIC ---
-SynthDef(\env_arctic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+SynthDef(\env_arctic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0, outBus=0|
     var intLag = Lag.kr(intensity, 2.0);
     var env, sig, ice, wind, silence;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
@@ -392,12 +392,12 @@ SynthDef(\env_arctic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
     sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
-    Out.ar(0, sig);
+    Out.ar(outBus, sig);
 }).add;
 
 
 // --- JUNGLE ---
-SynthDef(\env_jungle, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+SynthDef(\env_jungle, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0, outBus=0|
     var intLag = Lag.kr(intensity, 2.0);
     var env, sig, insectBed, jungleReverb, birdCalls;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
@@ -430,12 +430,12 @@ SynthDef(\env_jungle, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
     sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
-    Out.ar(0, sig);
+    Out.ar(outBus, sig);
 }).add;
 
 
 // --- TAVERN ---
-SynthDef(\env_tavern, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
+SynthDef(\env_tavern, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0, outBus=0|
     var intLag = Lag.kr(intensity, 2.0);
     var env, sig, hum, crowd, fire, rhythm;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
@@ -470,7 +470,7 @@ SynthDef(\env_tavern, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);
     sig = sig + (GVerb.ar(sig.sum * 0.5, 30, 5.0, 0.5, 0.5, 15, 0, 0.3, 0.3) * Lag.kr(reverb, 2.0));
     sig = sig * env * Lag.kr(amp, fadeTime);
-    Out.ar(0, sig);
+    Out.ar(outBus, sig);
 }).add;
 
 

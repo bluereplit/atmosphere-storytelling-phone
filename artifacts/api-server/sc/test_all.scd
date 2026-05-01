@@ -35,6 +35,7 @@ var stochRetries     = 3;     // max trials for stochastic defs
 var passed  = 0;
 var failed  = 0;
 var failures = List.new;
+var privateBus;               // private 2-ch audio bus — no hardware needed
 
 // ---------- env theme names ----------
 var envDefs = [
@@ -82,10 +83,11 @@ var stochasticDefs = [
 ];
 
 // ---------- measure amplitude for `duration` seconds, return peak accum ----------
+// Reads from privateBus so no hardware output is required.
 var measureAmp = { |duration|
     var rmsSynth, rmsVal = 0;
     rmsSynth = {
-        var sig = In.ar(0, 2);
+        var sig = In.ar(privateBus.index, 2);
         var amp = Amplitude.kr(sig[0], 0.005, 0.05);
         SendReply.kr(Impulse.kr(20), '/testAmp', [amp]);
     }.play(addAction: \addToTail);
@@ -100,11 +102,13 @@ var measureAmp = { |duration|
 var testOneTrial = { |defName, isAttr, intensity, testDuration|
     var synth, result;
     if (isAttr, {
-        synth = Synth(defName, [amp: 1.0, intensity: intensity, fadeTime: 0.05]);
+        synth = Synth(defName, [amp: 1.0, intensity: intensity, fadeTime: 0.05,
+            outBus: privateBus.index]);
     }, {
         synth = Synth(defName, [
             amp: 1.0, intensity: intensity, gate: 1, fadeTime: 0.05,
-            reverb: 0.1, lpfFreq: 12000, masterPitch: 0
+            reverb: 0.1, lpfFreq: 12000, masterPitch: 0,
+            outBus: privateBus.index
         ]);
     });
     warmUp.wait;
@@ -169,6 +173,10 @@ Server.default.options.sampleRate = 44100;
 Server.default.options.maxNodes = 1024;
 
 s.waitForBoot({
+    // Allocate a private stereo bus — synths write here instead of hardware output
+    privateBus = Bus.audio(s, 2);
+    ("Private test bus allocated: index=" ++ privateBus.index).postln;
+
     // 1. Validate startup.scd syntax
     "=== Startup Validation ===".postln;
     validateStartup.();
@@ -200,6 +208,7 @@ s.waitForBoot({
         "All SynthDefs compiled and produced non-zero audio output.".postln;
     });
 
+    privateBus.free;
     s.quit;
     if (failed > 0, { 1.exit }, { 0.exit });
 });
