@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useConnection } from "@/lib/ws-context";
 import {
   useAudioMute,
@@ -5,13 +6,14 @@ import {
   useTransitionNext,
   useTransitionTo,
   useDisplayOverlayToggle,
-  getGetStateQueryKey
+  getGetStateQueryKey,
+  type Phase
 } from "@workspace/api-client-react";
-import { Phase } from "@workspace/api-client-react/src/generated/api.schemas";
 import { useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { VolumeX, Volume2, Monitor, SkipForward } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { VolumeX, Volume2, Monitor, SkipForward, ChevronDown, ChevronRight } from "lucide-react";
 import { LiveControls } from "@/components/LiveControls";
 import { ShowDesigner } from "@/components/ShowDesigner";
 import { OSCReference } from "@/components/OSCReference";
@@ -21,6 +23,7 @@ const PHASES: Phase[] = ["daytime", "evening", "night", "dawn"];
 export default function Dashboard() {
   const { state, connected } = useConnection();
   const queryClient = useQueryClient();
+  const [oscOpen, setOscOpen] = useState(false);
 
   const muteMutation = useAudioMute();
   const unmuteMutation = useAudioUnmute();
@@ -58,13 +61,10 @@ export default function Dashboard() {
     });
   };
 
-  const activeAttributeCount = state?.attributes
-    ? Object.values(state.attributes).filter(a => a.enabled).length
-    : 0;
-
-  const totalAttributeCount = state?.attributes
-    ? Object.keys(state.attributes).length
-    : 38;
+  const attrs = state?.attributes ?? {};
+  const attrEntries = Object.values(attrs) as Array<{ enabled: boolean }>;
+  const activeAttributeCount = attrEntries.filter(a => a.enabled).length;
+  const totalAttributeCount = attrEntries.length || 38;
 
   const intensityPct = state?.intensity !== undefined ? Math.round(state.intensity * 100) : null;
   const currentThemeLabel = state?.environmentTheme
@@ -81,14 +81,10 @@ export default function Dashboard() {
             <h1 className="text-xl font-bold tracking-wider uppercase font-mono text-primary glow-text">
               Atmosphere Control
             </h1>
-
-            {/* WS connection */}
             <div className="flex items-center gap-2 bg-secondary/50 px-3 py-1.5 rounded-full border border-border text-xs font-mono tracking-wider uppercase text-muted-foreground">
               <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500 shadow-green-500/50" : "bg-red-500 shadow-red-500/50"} shadow-sm`} />
               {connected ? "WS Connected" : "WS Disconnected"}
             </div>
-
-            {/* SC engine status */}
             {state?.scReady !== undefined && (
               <div className="flex items-center gap-2 bg-secondary/50 px-3 py-1.5 rounded-full border border-border text-xs font-mono tracking-wider uppercase text-muted-foreground">
                 <div className={`w-2 h-2 rounded-full shadow-sm ${state.scReady ? "bg-primary shadow-primary/50" : "bg-red-500 shadow-red-500/50"}`} />
@@ -96,7 +92,6 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -132,17 +127,15 @@ export default function Dashboard() {
           <div className="w-px h-4 bg-border/60 hidden sm:block" />
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground uppercase">Intensity</span>
-            <div className="flex items-center gap-2">
-              <div className="w-24 h-1.5 rounded-full bg-secondary overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-300"
-                  style={{ width: intensityPct !== null ? `${intensityPct}%` : "0%" }}
-                />
-              </div>
-              <span className="text-primary font-semibold w-8">
-                {intensityPct !== null ? `${intensityPct}%` : "—"}
-              </span>
+            <div className="w-24 h-1.5 rounded-full bg-secondary overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-300"
+                style={{ width: intensityPct !== null ? `${intensityPct}%` : "0%" }}
+              />
             </div>
+            <span className="text-primary font-semibold w-8">
+              {intensityPct !== null ? `${intensityPct}%` : "—"}
+            </span>
           </div>
           <div className="w-px h-4 bg-border/60 hidden sm:block" />
           <div className="flex items-center gap-2">
@@ -186,13 +179,12 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="flex-1 p-6 max-w-[1600px] mx-auto w-full">
+      <main className="flex-1 p-6 max-w-[1600px] mx-auto w-full space-y-8">
         <Tabs defaultValue="live" className="w-full">
           <TabsList className="w-full justify-start border-b border-border rounded-none bg-transparent p-0 h-auto gap-6 mb-8">
             {[
               { value: "live", label: "Live Controls" },
-              { value: "designer", label: "Show Designer" },
-              { value: "osc", label: "OSC Reference" }
+              { value: "designer", label: "Show Designer" }
             ].map(({ value, label }) => (
               <TabsTrigger
                 key={value}
@@ -210,10 +202,20 @@ export default function Dashboard() {
           <TabsContent value="designer" className="mt-0 outline-none animate-in fade-in duration-500">
             <ShowDesigner />
           </TabsContent>
-          <TabsContent value="osc" className="mt-0 outline-none animate-in fade-in duration-500">
-            <OSCReference />
-          </TabsContent>
         </Tabs>
+
+        {/* OSC Reference — collapsible bottom panel */}
+        <Collapsible open={oscOpen} onOpenChange={setOscOpen} className="border border-border rounded-lg overflow-hidden">
+          <CollapsibleTrigger className="flex items-center justify-between w-full px-6 py-4 bg-card hover:bg-muted/50 transition-colors">
+            <span className="font-mono tracking-widest uppercase text-sm font-semibold text-muted-foreground">
+              OSC Reference
+            </span>
+            {oscOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          </CollapsibleTrigger>
+          <CollapsibleContent className="p-6 border-t border-border bg-background animate-in fade-in duration-200">
+            <OSCReference />
+          </CollapsibleContent>
+        </Collapsible>
       </main>
     </div>
   );

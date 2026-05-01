@@ -152,6 +152,14 @@ export type PhaseConfigAttributes = { [key: string]: boolean };
 export interface PhaseConfig {
   attributes: PhaseConfigAttributes;
   params: PhaseParams;
+  /** Optional per-scene environment theme override (falls back to ShowConfig.environmentTheme) */
+  environmentTheme?: EnvironmentTheme;
+  /**
+   * Optional per-scene intensity override (falls back to ShowConfig.intensity)
+   * @minimum 0
+   * @maximum 1
+   */
+  intensity?: number;
 }
 
 export type ShowConfigPhases = {

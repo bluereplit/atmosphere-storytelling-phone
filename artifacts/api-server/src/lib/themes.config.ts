@@ -76,6 +76,8 @@ export interface PhaseParams {
 export interface PhaseConfig {
   attributes: Record<AttributeName, boolean>;
   params: PhaseParams;
+  environmentTheme?: EnvironmentTheme;
+  intensity?: number;
 }
 
 export interface ShowConfig {

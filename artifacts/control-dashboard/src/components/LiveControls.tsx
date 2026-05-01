@@ -6,9 +6,10 @@ import {
   useAttributeToggle,
   useAttributeVolume,
   useAttributeTempo,
-  getGetStateQueryKey
+  getGetStateQueryKey,
+  type EnvironmentTheme,
+  type AttributeName
 } from "@workspace/api-client-react";
-import { EnvironmentTheme, AttributeName } from "@workspace/api-client-react/src/generated/api.schemas";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";

@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { useGetState } from "@workspace/api-client-react";
-import { LiveState } from "@workspace/api-client-react/src/generated/api.schemas";
+import { useGetState, type LiveState } from "@workspace/api-client-react";
 
 interface ConnectionContextType {
   state: LiveState | null;
@@ -12,46 +11,34 @@ const ConnectionContext = createContext<ConnectionContextType | null>(null);
 export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [wsState, setWsState] = useState<LiveState | null>(null);
-  
-  // Use React Query for initial state, but WS overrides it
-  const { data: initialState } = useGetState({
-    query: {
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
-    }
-  });
 
-  const activeState = wsState || initialState || null;
+  const { data: initialState } = useGetState();
+
+  const activeState = wsState ?? initialState ?? null;
 
   useEffect(() => {
     let ws: WebSocket;
-    let reconnectTimer: number;
-    let isComponentMounted = true;
+    let reconnectTimer: ReturnType<typeof setTimeout>;
+    let mounted = true;
 
     function connect() {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
-      ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        if (!isComponentMounted) return;
-        setConnected(true);
-      };
-
+      ws.onopen = () => { if (mounted) setConnected(true); };
       ws.onclose = () => {
-        if (!isComponentMounted) return;
+        if (!mounted) return;
         setConnected(false);
-        reconnectTimer = window.setTimeout(connect, 2000);
+        reconnectTimer = setTimeout(connect, 2000);
       };
 
-      ws.onmessage = (event) => {
-        if (!isComponentMounted) return;
+      ws.onmessage = (event: MessageEvent) => {
+        if (!mounted) return;
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse(event.data as string) as Partial<LiveState> & { type?: string };
           if (data.type === "state") {
-            setWsState((prev) => {
-              const base = prev || initialState || ({} as LiveState);
+            setWsState(prev => {
+              const base: LiveState = prev ?? (initialState as LiveState) ?? ({} as LiveState);
               return {
                 ...base,
                 ...data,
@@ -66,22 +53,19 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
               };
             });
           }
-        } catch (err) {
-          console.error("WS parse error", err);
+        } catch {
+          // ignore malformed WS messages
         }
       };
     }
 
     connect();
-
     return () => {
-      isComponentMounted = false;
+      mounted = false;
       clearTimeout(reconnectTimer);
-      if (ws) {
-        ws.close();
-      }
+      ws?.close();
     };
-  }, [initialState]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <ConnectionContext.Provider value={{ state: activeState, connected }}>
@@ -90,10 +74,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useConnection() {
+export function useConnection(): ConnectionContextType {
   const context = useContext(ConnectionContext);
-  if (!context) {
-    throw new Error("useConnection must be used within a ConnectionProvider");
-  }
+  if (!context) throw new Error("useConnection must be used within a ConnectionProvider");
   return context;
 }

@@ -1,6 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useGetShow, useUpdateShow, useResetShow, getGetShowQueryKey } from "@workspace/api-client-react";
-import { ShowConfig, Phase, EnvironmentTheme } from "@workspace/api-client-react/src/generated/api.schemas";
+import {
+  type ShowConfig,
+  type Phase,
+  type EnvironmentTheme,
+  EnvironmentTheme as EnvironmentThemeValues
+} from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
@@ -20,10 +25,7 @@ const ATTRIBUTES = [
   "tension_drone", "thunder_distant", "blacksmith", "church_bells", "tavern_crowd", "seagulls", "dripping_cave"
 ];
 
-const ENVIRONMENT_THEMES: EnvironmentTheme[] = [
-  "forest", "ocean", "mountain", "desert", "city", "mystical",
-  "medieval", "underwater", "cosmic", "cave", "arctic", "jungle", "tavern"
-];
+const THEME_OPTIONS = Object.values(EnvironmentThemeValues) as EnvironmentTheme[];
 
 export function ShowDesigner() {
   const { data: show, isLoading } = useGetShow();
@@ -33,7 +35,6 @@ export function ShowDesigner() {
   const { toast } = useToast();
 
   const [localShow, setLocalShow] = useState<ShowConfig | null>(null);
-  const intensityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (show) {
@@ -49,7 +50,8 @@ export function ShowDesigner() {
     );
   }
 
-  const handleAttrToggle = (phase: Phase, attribute: string, checked: boolean) => {
+  const handleAttrToggle = (phase: Phase, attribute: string, val: boolean | "indeterminate") => {
+    const checked = val === true;
     setLocalShow(prev => {
       if (!prev) return prev;
       return {
@@ -58,25 +60,48 @@ export function ShowDesigner() {
           ...prev.phases,
           [phase]: {
             ...prev.phases[phase],
-            attributes: {
-              ...prev.phases[phase].attributes,
-              [attribute]: checked
-            }
+            attributes: { ...prev.phases[phase].attributes, [attribute]: checked }
           }
         }
       };
     });
   };
 
-  const handleThemeChange = (theme: EnvironmentTheme) => {
+  const handleGlobalTheme = (theme: EnvironmentTheme) => {
     setLocalShow(prev => prev ? { ...prev, environmentTheme: theme } : prev);
   };
 
-  const handleIntensityChange = (val: number[]) => {
-    const newVal = val[0];
-    setLocalShow(prev => prev ? { ...prev, intensity: newVal } : prev);
-    if (intensityDebounceRef.current) clearTimeout(intensityDebounceRef.current);
-    intensityDebounceRef.current = setTimeout(() => {}, 0);
+  const handleGlobalIntensity = (val: number[]) => {
+    setLocalShow(prev => prev ? { ...prev, intensity: val[0] } : prev);
+  };
+
+  const handlePhaseTheme = (phase: Phase, theme: string) => {
+    const value = theme === "__inherit__" ? undefined : (theme as EnvironmentTheme);
+    setLocalShow(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        phases: { ...prev.phases, [phase]: { ...prev.phases[phase], environmentTheme: value } }
+      };
+    });
+  };
+
+  const handlePhaseIntensity = (phase: Phase, val: number[]) => {
+    setLocalShow(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        phases: { ...prev.phases, [phase]: { ...prev.phases[phase], intensity: val[0] } }
+      };
+    });
+  };
+
+  const clearPhaseIntensity = (phase: Phase) => {
+    setLocalShow(prev => {
+      if (!prev) return prev;
+      const { intensity: _removed, ...rest } = prev.phases[phase];
+      return { ...prev, phases: { ...prev.phases, [phase]: rest } };
+    });
   };
 
   const handleSave = () => {
@@ -119,19 +144,19 @@ export function ShowDesigner() {
         </div>
       </div>
 
-      {/* Global show settings */}
+      {/* Global defaults */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border border-border rounded-md bg-card/30">
         <div className="space-y-2">
-          <Label className="text-xs font-mono tracking-widest uppercase text-muted-foreground">Default Environment Theme</Label>
+          <Label className="text-xs font-mono tracking-widest uppercase text-muted-foreground">Global Default Theme</Label>
           <Select
             value={localShow.environmentTheme}
-            onValueChange={(val) => handleThemeChange(val as EnvironmentTheme)}
+            onValueChange={(val) => handleGlobalTheme(val as EnvironmentTheme)}
           >
             <SelectTrigger className="h-10 bg-background border-border font-medium">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {ENVIRONMENT_THEMES.map(theme => (
+              {THEME_OPTIONS.map(theme => (
                 <SelectItem key={theme} value={theme} className="font-medium capitalize">
                   {theme.charAt(0).toUpperCase() + theme.slice(1)}
                 </SelectItem>
@@ -141,14 +166,14 @@ export function ShowDesigner() {
         </div>
         <div className="space-y-2">
           <Label className="text-xs font-mono tracking-widest uppercase text-muted-foreground flex justify-between">
-            <span>Default Intensity</span>
+            <span>Global Default Intensity</span>
             <span className="text-primary">{Math.round(localShow.intensity * 100)}%</span>
           </Label>
           <div className="flex items-center h-10 px-1">
             <Slider
               value={[localShow.intensity]}
               min={0} max={1} step={0.01}
-              onValueChange={handleIntensityChange}
+              onValueChange={handleGlobalIntensity}
               className="flex-1"
             />
           </div>
@@ -160,17 +185,86 @@ export function ShowDesigner() {
         <table className="w-full text-sm text-left">
           <thead className="bg-muted text-muted-foreground uppercase font-mono tracking-wider text-xs">
             <tr>
-              <th className="px-4 py-3 font-semibold border-b border-r border-border bg-background sticky left-0 z-20">
-                Attribute
+              <th className="px-4 py-3 font-semibold border-b border-r border-border bg-background sticky left-0 z-20 min-w-[140px]">
+                Attribute / Scene
               </th>
               {PHASES.map(phase => (
-                <th key={phase} className="px-4 py-3 font-semibold border-b border-border text-center">
+                <th key={phase} className="px-4 py-3 font-semibold border-b border-border text-center min-w-[160px]">
                   {phase}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-border bg-card">
+
+            {/* Per-scene environment theme row */}
+            <tr className="bg-muted/30 hover:bg-muted/50 transition-colors">
+              <td className="px-4 py-3 font-mono text-xs font-semibold border-r border-border bg-background/80 sticky left-0 z-10 text-muted-foreground uppercase tracking-wider">
+                Theme Override
+              </td>
+              {PHASES.map(phase => {
+                const val = localShow.phases[phase].environmentTheme ?? "__inherit__";
+                return (
+                  <td key={`theme-${phase}`} className="px-3 py-2 border-l border-border/50">
+                    <Select
+                      value={val}
+                      onValueChange={(v) => handlePhaseTheme(phase, v)}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-background border-border w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__inherit__" className="text-xs text-muted-foreground">
+                          — inherit global —
+                        </SelectItem>
+                        {THEME_OPTIONS.map(theme => (
+                          <SelectItem key={theme} value={theme} className="text-xs capitalize">
+                            {theme.charAt(0).toUpperCase() + theme.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </td>
+                );
+              })}
+            </tr>
+
+            {/* Per-scene intensity row */}
+            <tr className="bg-muted/30 hover:bg-muted/50 transition-colors">
+              <td className="px-4 py-3 font-mono text-xs font-semibold border-r border-border bg-background/80 sticky left-0 z-10 text-muted-foreground uppercase tracking-wider">
+                Intensity Override
+              </td>
+              {PHASES.map(phase => {
+                const phaseIntensity = localShow.phases[phase].intensity;
+                const hasOverride = phaseIntensity !== undefined;
+                return (
+                  <td key={`intensity-${phase}`} className="px-3 py-2 border-l border-border/50">
+                    <div className="flex items-center gap-2">
+                      <Slider
+                        value={[phaseIntensity ?? localShow.intensity]}
+                        min={0} max={1} step={0.01}
+                        onValueChange={(val) => handlePhaseIntensity(phase, val)}
+                        className="flex-1"
+                      />
+                      <span className={`text-xs w-8 text-right shrink-0 ${hasOverride ? "text-primary font-semibold" : "text-muted-foreground"}`}>
+                        {Math.round((phaseIntensity ?? localShow.intensity) * 100)}%
+                      </span>
+                      {hasOverride && (
+                        <button
+                          onClick={() => clearPhaseIntensity(phase)}
+                          className="text-xs text-muted-foreground hover:text-foreground shrink-0"
+                          title="Clear override"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                );
+              })}
+            </tr>
+
+            {/* Attribute rows */}
             {ATTRIBUTES.map(attr => (
               <tr key={attr} className="hover:bg-muted/50 transition-colors">
                 <td className="px-4 py-2 font-mono text-xs font-medium border-r border-border bg-background sticky left-0 z-10">
@@ -182,7 +276,7 @@ export function ShowDesigner() {
                     <td key={`${phase}-${attr}`} className="px-4 py-2 text-center border-l border-border/50">
                       <Checkbox
                         checked={isChecked}
-                        onCheckedChange={(val) => handleAttrToggle(phase, attr, val === true)}
+                        onCheckedChange={(val) => handleAttrToggle(phase, attr, val)}
                         className="mx-auto"
                       />
                     </td>
