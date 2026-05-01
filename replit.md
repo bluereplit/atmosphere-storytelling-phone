@@ -9,7 +9,7 @@ Self-hosted storytelling atmosphere system for Raspberry Pi. pnpm workspace mono
 Build a self-hosted real-time storytelling atmosphere system with:
 1. **Node.js/Express backend** — REST + WebSocket + OSC APIs, 5-phase state machine, 13 environment themes, 38 toggleable audio attributes synthesized via SuperCollider
 2. **Python+pygame visual display** — fullscreen native GPU output over HDMI (complete)
-3. **React+Vite web control dashboard** — control panel for live use (TBD)
+3. **React+Vite web control dashboard** — control panel for live use (complete)
 
 All sound is programmatically generated via SuperCollider SynthDefs. No file-based audio.
 
@@ -123,6 +123,37 @@ SDL_VIDEODRIVER=offscreen python3 artifacts/atmosphere-display/main.py  # headle
 
 Workflow name: `artifacts/atmosphere-display: Visual Display`  
 Command: `SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy python3 artifacts/atmosphere-display/main.py --no-fullscreen --ws-port 8080`
+
+## Artifact: Control Dashboard (React + Vite)
+
+**Dir**: `artifacts/control-dashboard/`  
+**Port**: `$PORT` (default 20266 in dev)  
+**Preview path**: `/control-dashboard/`  
+**Stack**: React 19, Vite 7, TailwindCSS 4, TanStack Query, Wouter, react-markdown
+
+### Source files
+
+| File | Purpose |
+|---|---|
+| `src/App.tsx` | Root — QueryClientProvider + ThemeProvider (dark) + ConnectionProvider + Wouter |
+| `src/lib/ws-context.tsx` | ConnectionContext: WebSocket auto-reconnect, live state, connected bool |
+| `src/pages/dashboard.tsx` | Main page: header + tab switcher (Live Controls / Show Designer / OSC Reference) |
+| `src/components/LiveControls.tsx` | Env theme dropdown, intensity slider (debounced), 38 attributes in 6 collapsible groups |
+| `src/components/ShowDesigner.tsx` | Grid: 38 attrs × 4 scenes; checkboxes per cell; save/reset via useUpdateShow/useResetShow |
+| `src/components/OSCReference.tsx` | Fetches `/docs/OSC_API.md`, renders with react-markdown |
+
+### Key behaviors
+
+- **WebSocket**: Connects to `wss://<host>/ws`; auto-reconnects every 2s on drop; live state merges over query initial state
+- **Scene buttons**: useTransitionTo + useTransitionNext; active scene highlighted in amber
+- **Attribute groups**: Nature, Weather, Wildlife, City/Urban, Mystical/Arcane, Dramatic/Tension
+- **Tempo extras**: heartbeat, war_drums, blacksmith show a BPM slider when enabled (useAttributeTempo)
+- **Debounce**: Volume and intensity sliders debounce 250ms before sending API calls
+- **Dark theme**: `.dark` added to `<html>` on mount; amber/gold accent palette
+
+### Proxy routing
+
+API server (`artifacts/api-server`) handles `/api`, `/ws`, `/docs` — all routed through its service in `artifact.toml`.
 
 ## Codegen notes
 
