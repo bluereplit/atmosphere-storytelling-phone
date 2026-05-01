@@ -207,6 +207,46 @@ class StandbyScreen:
 
 
 # ─────────────────────────────────────────────────────────────
+#  Startup performance log
+# ─────────────────────────────────────────────────────────────
+
+def _log_startup_perf(w: int, h: int) -> None:
+    """
+    Measure one cold and one warm _draw_gradient call at the actual screen
+    resolution, then print the results to the terminal.  This makes it easy
+    to verify that the numpy gradient optimisation is hitting its <2ms target
+    on real Pi 3 hardware without attaching a profiler.
+    """
+    import pygame
+    from renderers import _draw_gradient
+
+    colors = [
+        ((18,  90, 180), 0.0),
+        ((82, 160, 220), 0.35),
+        ((170, 210, 240), 0.70),
+        ((245, 235, 195), 0.90),
+        ((255, 248, 220), 1.0),
+    ]
+
+    surf = pygame.Surface((w, h))
+
+    # Cold call (first numpy allocation)
+    t0 = time.monotonic()
+    _draw_gradient(surf, colors)
+    cold_ms = (time.monotonic() - t0) * 1000.0
+
+    # Warm call (arrays already in cache)
+    t0 = time.monotonic()
+    _draw_gradient(surf, colors)
+    warm_ms = (time.monotonic() - t0) * 1000.0
+
+    log.info(
+        "PERF  gradient fill  %dx%d  cold=%.2f ms  warm=%.2f ms",
+        w, h, cold_ms, warm_ms,
+    )
+
+
+# ─────────────────────────────────────────────────────────────
 #  App
 # ─────────────────────────────────────────────────────────────
 
@@ -272,6 +312,8 @@ class AtmosphereApp:
         screen = pygame.display.set_mode((w, h), flags)
         pygame.display.set_caption("Atmosphere Display")
         clock = pygame.time.Clock()
+
+        _log_startup_perf(w, h)
 
         # Initial renderer — apply default theme/intensity before first state event
         renderer = make_renderer(self._current_phase)
