@@ -98,19 +98,20 @@ function handleOscMessage(address: string, args: (string | number)[]): void {
 
 function handleTransition(
   parts: string[],
-  _args: (string | number)[],
+  args: (string | number)[],
   show: ShowConfig
 ): void {
   if (parts[1] === "next") {
     nextPhase(show);
     return;
   }
-  if (parts[1] === "to" && parts[2]) {
-    const phase = parts[2] as Phase;
+  if (parts[1] === "to") {
+    const phaseVal = parts[2] ?? String(args[0] ?? "");
+    const phase = phaseVal as Phase;
     if (PHASES.includes(phase)) {
       setPhase(phase, show);
     } else {
-      logger.warn({ phase }, "Unknown phase in /transition/to");
+      logger.warn({ phase: phaseVal }, "Unknown phase in /transition/to");
     }
     return;
   }

@@ -64,7 +64,7 @@ All sound is programmatically generated via SuperCollider SynthDefs. No file-bas
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/state` | Full runtime state |
+| `GET /api/state` | Full runtime state (includes `timestamp`, `phaseParams`) |
 | `POST /api/transition/to/:phase` | Switch phase (daytime/evening/night/dawn) |
 | `POST /api/transition/auto` | Enable/disable auto-cycling |
 | `POST /api/environment/set/:theme` | Set one of 13 environment themes |
@@ -75,6 +75,7 @@ All sound is programmatically generated via SuperCollider SynthDefs. No file-bas
 | `POST /api/attribute/:name/distance` | Set attribute distance 0–1 (spatial attrs) |
 | `POST /api/audio/mute|unmute` | Global mute |
 | `GET  /api/audio/status` | SC health + OSC port |
+| `POST /api/display/overlay/toggle` | Broadcast overlay_toggle WS event to all clients |
 | `GET/POST /api/show` | Show configuration persistence |
 
 ### Data

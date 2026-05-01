@@ -8,8 +8,11 @@
 import type { EnvironmentTheme } from "./environmentTheme";
 import type { LiveStateAttributes } from "./liveStateAttributes";
 import type { Phase } from "./phase";
+import type { PhaseParams } from "./phaseParams";
 
 export interface LiveState {
+  /** Unix timestamp (ms) of this state snapshot */
+  timestamp: number;
   currentPhase: Phase;
   environmentTheme: EnvironmentTheme;
   /**
@@ -17,6 +20,7 @@ export interface LiveState {
    * @maximum 1
    */
   intensity: number;
+  phaseParams: PhaseParams;
   attributes: LiveStateAttributes;
   muted: boolean;
   scReady: boolean;

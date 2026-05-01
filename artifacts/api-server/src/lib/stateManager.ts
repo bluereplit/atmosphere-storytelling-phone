@@ -1,7 +1,9 @@
 import {
   PHASES,
   ATTRIBUTE_NAMES,
+  DEFAULT_PHASE_PARAMS,
   type Phase,
+  type PhaseParams,
   type EnvironmentTheme,
   type AttributeName,
   type ShowConfig,
@@ -16,9 +18,11 @@ import {
 import { logger } from "./logger.js";
 
 export interface LiveState {
+  timestamp: number;
   currentPhase: Phase;
   environmentTheme: EnvironmentTheme;
   intensity: number;
+  phaseParams: PhaseParams;
   attributes: Record<AttributeName, { enabled: boolean; volume: number }>;
   muted: boolean;
   scReady: boolean;
@@ -35,6 +39,7 @@ let currentPhase: Phase = "daytime";
 let environmentTheme: EnvironmentTheme = "forest";
 let intensity: number = 0.3;
 let muted: boolean = false;
+let currentPhaseParams: PhaseParams = { ...DEFAULT_PHASE_PARAMS.daytime };
 
 let themeNodeId: number = -1;
 let oldThemeNodeId: number = -1;
@@ -67,9 +72,11 @@ export function getLiveState(): LiveState {
     };
   }
   return {
+    timestamp: Date.now(),
     currentPhase,
     environmentTheme,
     intensity,
+    phaseParams: { ...currentPhaseParams },
     attributes,
     muted,
     scReady: isSuperColliderReady(),
@@ -81,6 +88,10 @@ export function initFromShow(show: ShowConfig): void {
   environmentTheme = show.environmentTheme;
   intensity = show.intensity;
   muted = show.muted;
+  currentPhaseParams = {
+    ...(DEFAULT_PHASE_PARAMS[currentPhase]),
+    ...(show.phases[currentPhase]?.params ?? {}),
+  };
 
   for (const name of ATTRIBUTE_NAMES) {
     attrVolumes.set(name, show.attributeVolumes[name] ?? 0.7);
@@ -151,10 +162,17 @@ export function setPhase(phase: Phase, show: ShowConfig): void {
   currentPhase = phase;
   const phaseConfig = show.phases[phase];
 
+  currentPhaseParams = {
+    ...(DEFAULT_PHASE_PARAMS[phase]),
+    ...(phaseConfig?.params ?? {}),
+  };
+
   if (isSuperColliderReady() && themeNodeId >= 0) {
     setSynth(themeNodeId, {
-      phaseOffset: PHASES.indexOf(phase) * 0.1,
-      fadeTime: PHASE_CROSSFADE_TIME,
+      reverb:      currentPhaseParams.reverb,
+      lpfFreq:     currentPhaseParams.lpfFreq,
+      masterPitch: currentPhaseParams.masterPitch,
+      fadeTime:    PHASE_CROSSFADE_TIME,
     });
   }
 
@@ -272,6 +290,15 @@ export function startAudioEngine(show: ShowConfig): void {
   }
   themeNodeId = startThemeSynth(show.environmentTheme, 1);
   environmentTheme = show.environmentTheme;
+
+  if (themeNodeId >= 0) {
+    setSynth(themeNodeId, {
+      reverb:      currentPhaseParams.reverb,
+      lpfFreq:     currentPhaseParams.lpfFreq,
+      masterPitch: currentPhaseParams.masterPitch,
+    });
+  }
+
   const phaseConfig = show.phases[currentPhase];
   for (const name of ATTRIBUTE_NAMES) {
     if (phaseConfig?.attributes[name]) {

@@ -29,6 +29,7 @@ import type {
   IntensityResponse,
   LiveState,
   MuteResponse,
+  OverlayToggleResult,
   Phase,
   PhaseResponse,
   ShowConfig,
@@ -1498,4 +1499,86 @@ export const useResetShow = <
   TContext
 > => {
   return useMutation(getResetShowMutationOptions(options));
+};
+
+/**
+ * Broadcasts an overlay_toggle event to all connected WebSocket clients and returns the timestamp of the toggle.
+ * @summary Toggle the visual display overlay
+ */
+export const getDisplayOverlayToggleUrl = () => {
+  return `/api/display/overlay/toggle`;
+};
+
+export const displayOverlayToggle = async (
+  options?: RequestInit,
+): Promise<OverlayToggleResult> => {
+  return customFetch<OverlayToggleResult>(getDisplayOverlayToggleUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getDisplayOverlayToggleMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof displayOverlayToggle>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof displayOverlayToggle>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["displayOverlayToggle"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof displayOverlayToggle>>,
+    void
+  > = () => {
+    return displayOverlayToggle(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DisplayOverlayToggleMutationResult = NonNullable<
+  Awaited<ReturnType<typeof displayOverlayToggle>>
+>;
+
+export type DisplayOverlayToggleMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Toggle the visual display overlay
+ */
+export const useDisplayOverlayToggle = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof displayOverlayToggle>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof displayOverlayToggle>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getDisplayOverlayToggleMutationOptions(options));
 };

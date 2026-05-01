@@ -20,10 +20,16 @@ export const HealthCheckResponse = zod.object({
 export const getStateResponseIntensityMin = 0;
 export const getStateResponseIntensityMax = 1;
 
+export const getStateResponsePhaseParamsReverbMin = 0;
+export const getStateResponsePhaseParamsReverbMax = 1;
+
 export const getStateResponseAttributesVolumeMin = 0;
 export const getStateResponseAttributesVolumeMax = 1;
 
 export const GetStateResponse = zod.object({
+  timestamp: zod
+    .number()
+    .describe("Unix timestamp (ms) of this state snapshot"),
   currentPhase: zod.enum(["daytime", "evening", "night", "dawn"]),
   environmentTheme: zod.enum([
     "forest",
@@ -44,6 +50,17 @@ export const GetStateResponse = zod.object({
     .number()
     .min(getStateResponseIntensityMin)
     .max(getStateResponseIntensityMax),
+  phaseParams: zod
+    .object({
+      reverb: zod
+        .number()
+        .min(getStateResponsePhaseParamsReverbMin)
+        .max(getStateResponsePhaseParamsReverbMax)
+        .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+      lpfFreq: zod.number().describe("Low-pass filter cutoff frequency in Hz"),
+      masterPitch: zod.number().describe("Master pitch shift in semitones"),
+    })
+    .describe("Per-phase synthesis parameters applied to the audio engine"),
   attributes: zod.record(
     zod.string(),
     zod.object({
@@ -682,6 +699,18 @@ export const AudioUnmuteResponse = zod.object({
 export const getShowResponseIntensityMin = 0;
 export const getShowResponseIntensityMax = 1;
 
+export const getShowResponsePhasesDaytimeParamsReverbMin = 0;
+export const getShowResponsePhasesDaytimeParamsReverbMax = 1;
+
+export const getShowResponsePhasesEveningParamsReverbMin = 0;
+export const getShowResponsePhasesEveningParamsReverbMax = 1;
+
+export const getShowResponsePhasesNightParamsReverbMin = 0;
+export const getShowResponsePhasesNightParamsReverbMax = 1;
+
+export const getShowResponsePhasesDawnParamsReverbMin = 0;
+export const getShowResponsePhasesDawnParamsReverbMax = 1;
+
 export const GetShowResponse = zod.object({
   environmentTheme: zod.enum([
     "forest",
@@ -706,15 +735,67 @@ export const GetShowResponse = zod.object({
   phases: zod.object({
     daytime: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(getShowResponsePhasesDaytimeParamsReverbMin)
+            .max(getShowResponsePhasesDaytimeParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
     evening: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(getShowResponsePhasesEveningParamsReverbMin)
+            .max(getShowResponsePhasesEveningParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
     night: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(getShowResponsePhasesNightParamsReverbMin)
+            .max(getShowResponsePhasesNightParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
     dawn: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(getShowResponsePhasesDawnParamsReverbMin)
+            .max(getShowResponsePhasesDawnParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
   }),
   attributeVolumes: zod.record(zod.string(), zod.number()),
@@ -726,6 +807,18 @@ export const GetShowResponse = zod.object({
  */
 export const updateShowBodyIntensityMin = 0;
 export const updateShowBodyIntensityMax = 1;
+
+export const updateShowBodyPhasesDaytimeParamsReverbMin = 0;
+export const updateShowBodyPhasesDaytimeParamsReverbMax = 1;
+
+export const updateShowBodyPhasesEveningParamsReverbMin = 0;
+export const updateShowBodyPhasesEveningParamsReverbMax = 1;
+
+export const updateShowBodyPhasesNightParamsReverbMin = 0;
+export const updateShowBodyPhasesNightParamsReverbMax = 1;
+
+export const updateShowBodyPhasesDawnParamsReverbMin = 0;
+export const updateShowBodyPhasesDawnParamsReverbMax = 1;
 
 export const UpdateShowBody = zod.object({
   environmentTheme: zod.enum([
@@ -751,15 +844,67 @@ export const UpdateShowBody = zod.object({
   phases: zod.object({
     daytime: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(updateShowBodyPhasesDaytimeParamsReverbMin)
+            .max(updateShowBodyPhasesDaytimeParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
     evening: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(updateShowBodyPhasesEveningParamsReverbMin)
+            .max(updateShowBodyPhasesEveningParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
     night: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(updateShowBodyPhasesNightParamsReverbMin)
+            .max(updateShowBodyPhasesNightParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
     dawn: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(updateShowBodyPhasesDawnParamsReverbMin)
+            .max(updateShowBodyPhasesDawnParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
   }),
   attributeVolumes: zod.record(zod.string(), zod.number()),
@@ -768,6 +913,18 @@ export const UpdateShowBody = zod.object({
 
 export const updateShowResponseIntensityMin = 0;
 export const updateShowResponseIntensityMax = 1;
+
+export const updateShowResponsePhasesDaytimeParamsReverbMin = 0;
+export const updateShowResponsePhasesDaytimeParamsReverbMax = 1;
+
+export const updateShowResponsePhasesEveningParamsReverbMin = 0;
+export const updateShowResponsePhasesEveningParamsReverbMax = 1;
+
+export const updateShowResponsePhasesNightParamsReverbMin = 0;
+export const updateShowResponsePhasesNightParamsReverbMax = 1;
+
+export const updateShowResponsePhasesDawnParamsReverbMin = 0;
+export const updateShowResponsePhasesDawnParamsReverbMax = 1;
 
 export const UpdateShowResponse = zod.object({
   environmentTheme: zod.enum([
@@ -793,15 +950,67 @@ export const UpdateShowResponse = zod.object({
   phases: zod.object({
     daytime: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(updateShowResponsePhasesDaytimeParamsReverbMin)
+            .max(updateShowResponsePhasesDaytimeParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
     evening: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(updateShowResponsePhasesEveningParamsReverbMin)
+            .max(updateShowResponsePhasesEveningParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
     night: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(updateShowResponsePhasesNightParamsReverbMin)
+            .max(updateShowResponsePhasesNightParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
     dawn: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(updateShowResponsePhasesDawnParamsReverbMin)
+            .max(updateShowResponsePhasesDawnParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
   }),
   attributeVolumes: zod.record(zod.string(), zod.number()),
@@ -813,6 +1022,18 @@ export const UpdateShowResponse = zod.object({
  */
 export const resetShowResponseIntensityMin = 0;
 export const resetShowResponseIntensityMax = 1;
+
+export const resetShowResponsePhasesDaytimeParamsReverbMin = 0;
+export const resetShowResponsePhasesDaytimeParamsReverbMax = 1;
+
+export const resetShowResponsePhasesEveningParamsReverbMin = 0;
+export const resetShowResponsePhasesEveningParamsReverbMax = 1;
+
+export const resetShowResponsePhasesNightParamsReverbMin = 0;
+export const resetShowResponsePhasesNightParamsReverbMax = 1;
+
+export const resetShowResponsePhasesDawnParamsReverbMin = 0;
+export const resetShowResponsePhasesDawnParamsReverbMax = 1;
 
 export const ResetShowResponse = zod.object({
   environmentTheme: zod.enum([
@@ -838,17 +1059,78 @@ export const ResetShowResponse = zod.object({
   phases: zod.object({
     daytime: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(resetShowResponsePhasesDaytimeParamsReverbMin)
+            .max(resetShowResponsePhasesDaytimeParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
     evening: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(resetShowResponsePhasesEveningParamsReverbMin)
+            .max(resetShowResponsePhasesEveningParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
     night: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(resetShowResponsePhasesNightParamsReverbMin)
+            .max(resetShowResponsePhasesNightParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
     dawn: zod.object({
       attributes: zod.record(zod.string(), zod.boolean()),
+      params: zod
+        .object({
+          reverb: zod
+            .number()
+            .min(resetShowResponsePhasesDawnParamsReverbMin)
+            .max(resetShowResponsePhasesDawnParamsReverbMax)
+            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+          lpfFreq: zod
+            .number()
+            .describe("Low-pass filter cutoff frequency in Hz"),
+          masterPitch: zod.number().describe("Master pitch shift in semitones"),
+        })
+        .describe("Per-phase synthesis parameters applied to the audio engine"),
     }),
   }),
   attributeVolumes: zod.record(zod.string(), zod.number()),
   attributeTempo: zod.record(zod.string(), zod.number()),
+});
+
+/**
+ * Broadcasts an overlay_toggle event to all connected WebSocket clients and returns the timestamp of the toggle.
+ * @summary Toggle the visual display overlay
+ */
+export const DisplayOverlayToggleResponse = zod.object({
+  overlayToggle: zod.boolean(),
+  timestamp: zod.number().describe("Unix timestamp (ms) of the toggle event"),
 });

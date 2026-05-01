@@ -17,9 +17,25 @@ let isReady = false;
 let restartTimer: ReturnType<typeof setTimeout> | null = null;
 
 const liveNodes = new Map<number, string>();
+const readyCallbacks: (() => void)[] = [];
 
 export function isSuperColliderReady(): boolean {
   return isReady;
+}
+
+export function onSuperColliderReady(cb: () => void): void {
+  if (isReady) {
+    cb();
+  } else {
+    readyCallbacks.push(cb);
+  }
+}
+
+function fireReadyCallbacks(): void {
+  const cbs = readyCallbacks.splice(0);
+  for (const cb of cbs) {
+    try { cb(); } catch (err) { logger.error({ err }, "SC ready callback error"); }
+  }
 }
 
 function createOscClient(): OscClient {
@@ -45,6 +61,7 @@ export function startSuperCollider(): void {
           isReady = true;
           oscClient = createOscClient();
           logger.info("SuperCollider audio engine ready");
+          fireReadyCallbacks();
         }
       }
     });

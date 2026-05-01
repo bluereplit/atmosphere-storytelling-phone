@@ -87,9 +87,27 @@ export interface AttributeState {
   volume: number;
 }
 
+/**
+ * Per-phase synthesis parameters applied to the audio engine
+ */
+export interface PhaseParams {
+  /**
+   * Reverb wet mix (0 = dry, 1 = full wet)
+   * @minimum 0
+   * @maximum 1
+   */
+  reverb: number;
+  /** Low-pass filter cutoff frequency in Hz */
+  lpfFreq: number;
+  /** Master pitch shift in semitones */
+  masterPitch: number;
+}
+
 export type LiveStateAttributes = { [key: string]: AttributeState };
 
 export interface LiveState {
+  /** Unix timestamp (ms) of this state snapshot */
+  timestamp: number;
   currentPhase: Phase;
   environmentTheme: EnvironmentTheme;
   /**
@@ -97,6 +115,7 @@ export interface LiveState {
    * @maximum 1
    */
   intensity: number;
+  phaseParams: PhaseParams;
   attributes: LiveStateAttributes;
   muted: boolean;
   scReady: boolean;
@@ -119,6 +138,7 @@ export type PhaseConfigAttributes = { [key: string]: boolean };
 
 export interface PhaseConfig {
   attributes: PhaseConfigAttributes;
+  params: PhaseParams;
 }
 
 export type ShowConfigPhases = {
@@ -187,4 +207,10 @@ export interface AttributeDistanceResult {
 
 export interface MuteResponse {
   muted: boolean;
+}
+
+export interface OverlayToggleResult {
+  overlayToggle: boolean;
+  /** Unix timestamp (ms) of the toggle event */
+  timestamp: number;
 }

@@ -6,7 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PhaseConfigAttributes } from "./phaseConfigAttributes";
+import type { PhaseParams } from "./phaseParams";
 
 export interface PhaseConfig {
   attributes: PhaseConfigAttributes;
+  params: PhaseParams;
 }

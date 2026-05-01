@@ -6,9 +6,9 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import { initRouter } from "./routes/index.js";
 import { logger } from "./lib/logger.js";
-import { initWebSocketServer, broadcastState } from "./lib/wsServer.js";
+import { initWebSocketServer, broadcastState, broadcastOverlayToggle } from "./lib/wsServer.js";
 import { initOscServer } from "./lib/oscServer.js";
-import { startSuperCollider, stopSuperCollider } from "./lib/supercollider.js";
+import { startSuperCollider, stopSuperCollider, onSuperColliderReady } from "./lib/supercollider.js";
 import {
   initFromShow,
   onStateChange,
@@ -67,12 +67,13 @@ export function createAppServer(): Server {
 
   startSuperCollider();
 
-  setTimeout(() => {
+  onSuperColliderReady(() => {
+    logger.info("SuperCollider ready — starting audio engine");
     startAudioEngine(currentShow);
-  }, 8000);
+  });
 
   const overlayToggle = () => {
-    broadcastState({ ...getShow() as unknown as import("./lib/stateManager.js").LiveState, __overlayToggle: true } as unknown as import("./lib/stateManager.js").LiveState);
+    broadcastOverlayToggle();
   };
 
   initOscServer(getShow, overlayToggle);

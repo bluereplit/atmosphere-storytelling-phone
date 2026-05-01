@@ -65,8 +65,15 @@ export interface AttributeState {
   distance?: number;
 }
 
+export interface PhaseParams {
+  reverb: number;        // 0–1 reverb wet mix
+  lpfFreq: number;       // low-pass filter cutoff Hz
+  masterPitch: number;   // master pitch shift semitones
+}
+
 export interface PhaseConfig {
   attributes: Record<AttributeName, boolean>;
+  params: PhaseParams;
 }
 
 export interface ShowConfig {
@@ -77,6 +84,13 @@ export interface ShowConfig {
   attributeTempo: Partial<Record<AttributeName, number>>;
   muted: boolean;
 }
+
+export const DEFAULT_PHASE_PARAMS: Record<Phase, PhaseParams> = {
+  daytime: { reverb: 0.15, lpfFreq: 12000, masterPitch: 0 },
+  evening: { reverb: 0.25, lpfFreq: 8000,  masterPitch: -1 },
+  night:   { reverb: 0.40, lpfFreq: 5000,  masterPitch: -3 },
+  dawn:    { reverb: 0.20, lpfFreq: 10000, masterPitch: 1  },
+};
 
 export const DEFAULT_PHASE_ATTRIBUTES: Record<Phase, Partial<Record<AttributeName, boolean>>> = {
   daytime: {
@@ -123,7 +137,10 @@ export function buildDefaultShow(): ShowConfig {
     for (const name of ATTRIBUTE_NAMES) {
       attrs[name] = defaults[name] ?? false;
     }
-    phases[phase] = { attributes: attrs };
+    phases[phase] = {
+      attributes: attrs,
+      params: { ...DEFAULT_PHASE_PARAMS[phase] },
+    };
   }
   return {
     environmentTheme: "forest",

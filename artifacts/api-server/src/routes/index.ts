@@ -6,18 +6,13 @@ import environmentRouter from "./environment.js";
 import attributesRouter from "./attributes.js";
 import audioRouter from "./audio.js";
 import { makeShowRouter } from "./show.js";
+import { makeDisplayRouter } from "./display.js";
 import type { ShowConfig } from "../lib/themes.config.js";
-
-let _getShow: (() => ShowConfig) | null = null;
-let _setShow: ((s: ShowConfig) => void) | null = null;
 
 export function initRouter(
   getShow: () => ShowConfig,
   setShow: (s: ShowConfig) => void
 ): IRouter {
-  _getShow = getShow;
-  _setShow = setShow;
-
   const router: IRouter = Router();
 
   router.use(healthRouter);
@@ -27,6 +22,7 @@ export function initRouter(
   router.use(attributesRouter);
   router.use(audioRouter);
   router.use(makeShowRouter(getShow, setShow));
+  router.use(makeDisplayRouter());
 
   return router;
 }
