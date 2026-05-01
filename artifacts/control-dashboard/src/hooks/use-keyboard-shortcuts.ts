@@ -8,6 +8,7 @@ type KeyboardShortcutHandlers = {
   onNext: () => void;
   onMuteToggle: () => void;
   onOverlayToggle: () => void;
+  onFlash?: (label: string) => void;
 };
 
 function isInputFocused(): boolean {
@@ -31,34 +32,41 @@ export function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers) {
       switch (e.key) {
         case "1":
           e.preventDefault();
+          handlers.onFlash?.("→ Daytime");
           handlers.onPhase1();
           break;
         case "2":
           e.preventDefault();
+          handlers.onFlash?.("→ Evening");
           handlers.onPhase2();
           break;
         case "3":
           e.preventDefault();
+          handlers.onFlash?.("→ Night");
           handlers.onPhase3();
           break;
         case "4":
           e.preventDefault();
+          handlers.onFlash?.("→ Dawn");
           handlers.onPhase4();
           break;
         case " ":
         case "n":
         case "N":
           e.preventDefault();
+          handlers.onFlash?.("→ Next Scene");
           handlers.onNext();
           break;
         case "m":
         case "M":
           e.preventDefault();
+          handlers.onFlash?.("Toggle Mute");
           handlers.onMuteToggle();
           break;
         case "o":
         case "O":
           e.preventDefault();
+          handlers.onFlash?.("Toggle Overlay");
           handlers.onOverlayToggle();
           break;
       }

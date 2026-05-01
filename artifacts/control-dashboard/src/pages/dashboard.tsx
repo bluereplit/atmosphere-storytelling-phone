@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "@/hooks/use-toast";
 import { useConnection } from "@/lib/ws-context";
 import {
   useAudioMute,
@@ -113,6 +114,31 @@ export default function Dashboard() {
     });
   }, [overlayMutation, queryClient]);
 
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current !== null) {
+        clearTimeout(flashTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showFlash = useCallback((label: string) => {
+    if (flashTimerRef.current !== null) {
+      clearTimeout(flashTimerRef.current);
+    }
+    const { dismiss } = toast({
+      title: label,
+      className:
+        "font-mono tracking-widest uppercase text-sm py-2 px-4 min-h-0 border-primary/30 bg-card/95 text-primary shadow-primary/10 shadow-md",
+    });
+    flashTimerRef.current = setTimeout(() => {
+      dismiss();
+      flashTimerRef.current = null;
+    }, 1000);
+  }, []);
+
   useKeyboardShortcuts({
     onPhase1: useCallback(() => handleTransitionTo("daytime"), [handleTransitionTo]),
     onPhase2: useCallback(() => handleTransitionTo("evening"), [handleTransitionTo]),
@@ -121,6 +147,7 @@ export default function Dashboard() {
     onNext: handleTransitionNext,
     onMuteToggle: handleMuteToggle,
     onOverlayToggle: handleOverlayToggle,
+    onFlash: showFlash,
   });
 
   const attrs = state?.attributes ?? {};
