@@ -3,9 +3,11 @@ import { useConnection } from "@/lib/ws-context";
 import {
   useSetEnvironmentTheme,
   useSetIntensity,
-  useAttributeToggle,
+  useAttributeOn,
+  useAttributeOff,
   useAttributeVolume,
   useAttributeTempo,
+  useGetShow,
   getGetStateQueryKey,
   type EnvironmentTheme,
   type AttributeName
@@ -28,6 +30,12 @@ const ATTRIBUTE_GROUPS: Record<string, string[]> = {
 
 const TEMPO_ATTRIBUTES: string[] = ["heartbeat", "war_drums", "blacksmith"];
 
+const TEMPO_DEFAULTS: Record<string, number> = {
+  heartbeat: 60,
+  war_drums: 80,
+  blacksmith: 72,
+};
+
 interface ThemeDescriptor {
   name: EnvironmentTheme;
   label: string;
@@ -35,19 +43,19 @@ interface ThemeDescriptor {
 }
 
 const THEME_DESCRIPTORS: ThemeDescriptor[] = [
-  { name: "forest", label: "Forest", descriptor: "Ancient canopy, rustling leaves" },
-  { name: "ocean", label: "Ocean", descriptor: "Open sea, salt wind, waves" },
-  { name: "mountain", label: "Mountain", descriptor: "Alpine stillness, thin air" },
-  { name: "desert", label: "Desert", descriptor: "Scorched silence, dust storms" },
-  { name: "city", label: "City", descriptor: "Urban pulse, neon rain" },
-  { name: "mystical", label: "Mystical", descriptor: "Otherworldly resonance" },
-  { name: "medieval", label: "Medieval", descriptor: "Stone walls, forge smoke" },
-  { name: "underwater", label: "Underwater", descriptor: "Pressure and deep silence" },
-  { name: "cosmic", label: "Cosmic", descriptor: "Void drones, stellar drift" },
-  { name: "cave", label: "Cave", descriptor: "Drip echo, limestone dark" },
-  { name: "arctic", label: "Arctic", descriptor: "Blizzard howl, frozen waste" },
-  { name: "jungle", label: "Jungle", descriptor: "Dense canopy, creature calls" },
-  { name: "tavern", label: "Tavern", descriptor: "Firelight, crowd murmur" }
+  { name: "forest",     label: "Forest",     descriptor: "Ancient canopy, rustling leaves" },
+  { name: "ocean",      label: "Ocean",       descriptor: "Open sea, salt wind, waves" },
+  { name: "mountain",   label: "Mountain",    descriptor: "Alpine stillness, thin air" },
+  { name: "desert",     label: "Desert",      descriptor: "Scorched silence, dust storms" },
+  { name: "city",       label: "City",        descriptor: "Urban pulse, neon rain" },
+  { name: "mystical",   label: "Mystical",    descriptor: "Otherworldly resonance" },
+  { name: "medieval",   label: "Medieval",    descriptor: "Stone walls, forge smoke" },
+  { name: "underwater", label: "Underwater",  descriptor: "Pressure and deep silence" },
+  { name: "cosmic",     label: "Cosmic",      descriptor: "Void drones, stellar drift" },
+  { name: "cave",       label: "Cave",        descriptor: "Drip echo, limestone dark" },
+  { name: "arctic",     label: "Arctic",      descriptor: "Blizzard howl, frozen waste" },
+  { name: "jungle",     label: "Jungle",      descriptor: "Dense canopy, creature calls" },
+  { name: "tavern",     label: "Tavern",      descriptor: "Firelight, crowd murmur" }
 ];
 
 function ThemeGrid({ currentTheme, onSelect }: { currentTheme: EnvironmentTheme | undefined; onSelect: (t: EnvironmentTheme) => void }) {
@@ -77,27 +85,31 @@ function ThemeGrid({ currentTheme, onSelect }: { currentTheme: EnvironmentTheme 
   );
 }
 
-function AttributeControl({ name }: { name: AttributeName }) {
+function AttributeControl({ name, initialTempo }: { name: AttributeName; initialTempo: number }) {
   const { state } = useConnection();
   const attrState = state?.attributes?.[name];
   const enabled = attrState?.enabled ?? false;
   const volume = attrState?.volume ?? 0.5;
 
   const queryClient = useQueryClient();
-  const toggleMutation = useAttributeToggle();
+  const onMutation = useAttributeOn();
+  const offMutation = useAttributeOff();
   const volumeMutation = useAttributeVolume();
   const tempoMutation = useAttributeTempo();
 
   const [localVol, setLocalVol] = useState(volume);
-  const [localTempo, setLocalTempo] = useState(60);
+  const [localTempo, setLocalTempo] = useState(initialTempo);
 
   const volDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tempoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { setLocalVol(volume); }, [volume]);
+  // Re-sync if initialTempo changes (e.g. show reloads)
+  useEffect(() => { setLocalTempo(initialTempo); }, [initialTempo]);
 
-  const handleToggle = () => {
-    toggleMutation.mutate({ name }, {
+  const handleCheckedChange = (checked: boolean) => {
+    const mutation = checked ? onMutation : offMutation;
+    mutation.mutate({ name }, {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() })
     });
   };
@@ -132,7 +144,7 @@ function AttributeControl({ name }: { name: AttributeName }) {
         <span className={`font-mono text-sm font-medium ${enabled ? "text-primary glow-text" : "text-muted-foreground"}`}>
           {(name as string).replace(/_/g, " ")}
         </span>
-        <Switch checked={enabled} onCheckedChange={handleToggle} />
+        <Switch checked={enabled} onCheckedChange={handleCheckedChange} />
       </div>
 
       {enabled && (
@@ -154,7 +166,11 @@ function AttributeControl({ name }: { name: AttributeName }) {
   );
 }
 
-function AttributeGroup({ title, attributes }: { title: string; attributes: string[] }) {
+function AttributeGroup({ title, attributes, attributeTempos }: {
+  title: string;
+  attributes: string[];
+  attributeTempos: Record<string, number>;
+}) {
   const [open, setOpen] = useState(true);
 
   return (
@@ -165,7 +181,11 @@ function AttributeGroup({ title, attributes }: { title: string; attributes: stri
       </CollapsibleTrigger>
       <CollapsibleContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 pt-2">
         {attributes.map(attr => (
-          <AttributeControl key={attr} name={attr as AttributeName} />
+          <AttributeControl
+            key={attr}
+            name={attr as AttributeName}
+            initialTempo={attributeTempos[attr] ?? TEMPO_DEFAULTS[attr] ?? 60}
+          />
         ))}
       </CollapsibleContent>
     </Collapsible>
@@ -174,6 +194,7 @@ function AttributeGroup({ title, attributes }: { title: string; attributes: stri
 
 export function LiveControls() {
   const { state } = useConnection();
+  const { data: show } = useGetShow();
   const queryClient = useQueryClient();
   const themeMutation = useSetEnvironmentTheme();
   const intensityMutation = useSetIntensity();
@@ -204,6 +225,12 @@ export function LiveControls() {
     }, 300);
   };
 
+  // Build tempo lookup from show config; fall back to defaults
+  const attributeTempos: Record<string, number> = {
+    ...TEMPO_DEFAULTS,
+    ...(show?.attributeTempo ?? {})
+  };
+
   return (
     <div className="space-y-6">
       <Card className="border-border/50 bg-card/50">
@@ -231,7 +258,7 @@ export function LiveControls() {
 
       <div className="space-y-4">
         {Object.entries(ATTRIBUTE_GROUPS).map(([title, attributes]) => (
-          <AttributeGroup key={title} title={title} attributes={attributes} />
+          <AttributeGroup key={title} title={title} attributes={attributes} attributeTempos={attributeTempos} />
         ))}
       </div>
     </div>
