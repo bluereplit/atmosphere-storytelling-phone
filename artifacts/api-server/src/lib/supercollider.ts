@@ -70,6 +70,9 @@ export function startSuperCollider(): void {
       const text = data.toString().trim();
       if (text) {
         logger.info({ sc: text }, "SuperCollider");
+        if (text.includes("Master limiter started")) {
+          logger.info("SuperCollider master limiter active — clipping protection enabled");
+        }
         if (
           !isReady &&
           (text.includes("SuperCollider ready") || text.includes("SynthDefs loaded"))

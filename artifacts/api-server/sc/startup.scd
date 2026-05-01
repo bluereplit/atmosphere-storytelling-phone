@@ -29,6 +29,17 @@ ServerQuit.add({
 s.waitForBoot({
     "SuperCollider server booted".postln;
 
+    // Master limiter — sits at the tail of the root node so it processes the
+    // summed output of every other synth before it reaches the DAC.
+    // Ceiling: 0.7 ≈ -3 dBFS; lookahead: 10 ms.
+    SynthDef(\master_limiter, {
+        var ceiling = 0.7;
+        var lookahead = 0.01;
+        var in = In.ar(0, Server.default.options.numOutputBusChannels);
+        var limited = Limiter.ar(in, ceiling, lookahead);
+        ReplaceOut.ar(0, limited);
+    }).add;
+
     // Load SynthDef files — each calls SynthDef(\name, { ... }).add
     (scDir +/+ "envThemes.scd").load;
     (scDir +/+ "attributes.scd").load;
@@ -36,6 +47,11 @@ s.waitForBoot({
 
     // s.sync waits until the server has acknowledged all pending SynthDef.add messages
     s.sync;
+
+    // Start the master limiter at the tail of the root node so it runs after
+    // every other synth in the default group.
+    Synth(\master_limiter, [], RootNode(s), \addToTail);
+    "Master limiter started".postln;
 
     "SynthDefs loaded".postln;
     "SuperCollider ready".postln;
