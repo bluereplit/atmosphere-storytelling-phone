@@ -8,6 +8,7 @@ import {
   useAttributeOff,
   useAttributeVolume,
   useAttributeTempo,
+  useAttributeDistance,
   useGetShow,
   getGetStateQueryKey,
   type EnvironmentTheme,
@@ -19,7 +20,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, Activity, Volume2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Activity, Volume2, Waves } from "lucide-react";
 
 const ATTRIBUTE_GROUPS: Record<string, string[]> = {
   "Nature": ["crickets", "birds", "wind", "ocean_waves", "rain", "frogs", "stream", "waterfall"],
@@ -37,6 +38,14 @@ const TEMPO_DEFAULTS: Record<string, number> = {
   war_drums: 80,
   blacksmith: 72,
 };
+
+// Attributes that support spatial distance positioning (0 = close, 1 = distant)
+const DISTANCE_ATTRIBUTES: string[] = [
+  "wolves", "ravens", "thunder", "thunder_distant", "traffic",
+  "choir_pad", "wind", "ocean_waves", "waterfall", "blizzard",
+  "sandstorm", "geothermal", "crowd", "sirens", "whispers",
+  "portal_hum", "tension_drone",
+];
 
 interface ThemeDescriptor {
   name: EnvironmentTheme;
@@ -94,22 +103,29 @@ function AttributeControl({ name, initialTempo }: { name: AttributeName; initial
   const volume = attrState?.volume ?? 0.5;
   // Volume is stored as 0–1 in the backend; display as 0–100 for operators
   const volumePct = Math.round(volume * 100);
+  // Distance is stored as 0–1 in the backend; display as 0–100 for operators
+  const distancePct = attrState?.distance !== undefined ? Math.round(attrState.distance * 100) : 50;
 
   const queryClient = useQueryClient();
   const onMutation = useAttributeOn();
   const offMutation = useAttributeOff();
   const volumeMutation = useAttributeVolume();
   const tempoMutation = useAttributeTempo();
+  const distanceMutation = useAttributeDistance();
 
   const [localVol, setLocalVol] = useState(volumePct);
   const [localTempo, setLocalTempo] = useState(initialTempo);
+  const [localDistance, setLocalDistance] = useState(distancePct);
 
   const volDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tempoDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const distanceDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { setLocalVol(volumePct); }, [volumePct]);
   // Re-sync if initialTempo changes (e.g. show reloads)
   useEffect(() => { setLocalTempo(initialTempo); }, [initialTempo]);
+  // Re-sync distance when live state updates arrive over WS
+  useEffect(() => { setLocalDistance(distancePct); }, [distancePct]);
 
   const handleCheckedChange = (checked: boolean) => {
     const mutation = checked ? onMutation : offMutation;
@@ -140,7 +156,19 @@ function AttributeControl({ name, initialTempo }: { name: AttributeName; initial
     }, 300);
   };
 
+  const handleDistanceChange = (val: number[]) => {
+    const newPct = val[0];
+    setLocalDistance(newPct);
+    if (distanceDebounceRef.current) clearTimeout(distanceDebounceRef.current);
+    distanceDebounceRef.current = setTimeout(() => {
+      distanceMutation.mutate({ name, data: { value: newPct / 100 } }, {
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() })
+      });
+    }, 300);
+  };
+
   const isTempo = TEMPO_ATTRIBUTES.includes(name as string);
+  const isDistance = DISTANCE_ATTRIBUTES.includes(name as string);
 
   return (
     <div className={`p-3 rounded-md border flex flex-col gap-2 transition-colors ${enabled ? "bg-primary/5 border-primary/20" : "bg-card border-border"}`}>
@@ -178,6 +206,22 @@ function AttributeControl({ name, initialTempo }: { name: AttributeName; initial
             className="flex-1"
           />
           <span className="text-xs text-muted-foreground w-12 text-right shrink-0">{localTempo} bpm</span>
+        </div>
+      )}
+
+      {/* Distance — spatial positioning for ambient/distant sounds */}
+      {isDistance && (
+        <div className={`flex items-center gap-2 ${enabled ? "" : "opacity-50"}`}>
+          <Waves className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <Slider
+            value={[localDistance]}
+            min={0}
+            max={100}
+            step={1}
+            onValueChange={handleDistanceChange}
+            className="flex-1"
+          />
+          <span className="text-xs text-muted-foreground w-9 text-right shrink-0">{localDistance}%</span>
         </div>
       )}
     </div>

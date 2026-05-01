@@ -1284,6 +1284,94 @@ export const useAudioUnmute = <
 };
 
 /**
+ * Updates one or more per-phase synthesis parameters (reverb wet mix, low-pass filter cutoff, and master pitch shift) for the currently active phase. Changes are applied immediately to the audio engine but are ephemeral — they are not written to show.json.
+
+ * @summary Set live phase synthesis parameters (reverb, LPF, pitch)
+ */
+export const getSetPhaseParamsUrl = () => {
+  return `/api/phase/params`;
+};
+
+export const setPhaseParams = async (
+  phaseParamsBody: PhaseParamsBody,
+  options?: RequestInit,
+): Promise<PhaseParamsBody> => {
+  return customFetch<PhaseParamsBody>(getSetPhaseParamsUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(phaseParamsBody),
+  });
+};
+
+export const getSetPhaseParamsMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setPhaseParams>>,
+    TError,
+    { data: BodyType<PhaseParamsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setPhaseParams>>,
+  TError,
+  { data: BodyType<PhaseParamsBody> },
+  TContext
+> => {
+  const mutationKey = ["setPhaseParams"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setPhaseParams>>,
+    { data: BodyType<PhaseParamsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return setPhaseParams(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetPhaseParamsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setPhaseParams>>
+>;
+export type SetPhaseParamsMutationBody = BodyType<PhaseParamsBody>;
+export type SetPhaseParamsMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Set live phase synthesis parameters (reverb, LPF, pitch)
+ */
+export const useSetPhaseParams = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setPhaseParams>>,
+    TError,
+    { data: BodyType<PhaseParamsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof setPhaseParams>>,
+  TError,
+  { data: BodyType<PhaseParamsBody> },
+  TContext
+> => {
+  return useMutation(getSetPhaseParamsMutationOptions(options));
+};
+
+/**
  * @summary Get the current show configuration
  */
 export const getGetShowUrl = () => {
@@ -1593,90 +1681,4 @@ export const useDisplayOverlayToggle = <
   TContext
 > => {
   return useMutation(getDisplayOverlayToggleMutationOptions(options));
-};
-
-/**
- * @summary Set live phase synthesis parameters (reverb, LPF, pitch)
- */
-export const getSetPhaseParamsUrl = () => {
-  return `/api/phase/params`;
-};
-
-export const setPhaseParams = async (
-  phaseParamsBody: PhaseParamsBody,
-  options?: RequestInit,
-): Promise<PhaseParamsBody> => {
-  return customFetch<PhaseParamsBody>(getSetPhaseParamsUrl(), {
-    ...options,
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(phaseParamsBody),
-  });
-};
-
-export const getSetPhaseParamsMutationOptions = <
-  TError = ErrorType<ErrorResponse>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setPhaseParams>>,
-    TError,
-    { data: BodyType<PhaseParamsBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setPhaseParams>>,
-  TError,
-  { data: BodyType<PhaseParamsBody> },
-  TContext
-> => {
-  const mutationKey = ["setPhaseParams"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setPhaseParams>>,
-    { data: BodyType<PhaseParamsBody> }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return setPhaseParams(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetPhaseParamsMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setPhaseParams>>
->;
-export type SetPhaseParamsMutationBody = BodyType<PhaseParamsBody>;
-export type SetPhaseParamsMutationError = ErrorType<ErrorResponse>;
-
-/**
- * @summary Set live phase synthesis parameters (reverb, LPF, pitch)
- */
-export const useSetPhaseParams = <
-  TError = ErrorType<ErrorResponse>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setPhaseParams>>,
-    TError,
-    { data: BodyType<PhaseParamsBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationResult<
-  Awaited<ReturnType<typeof setPhaseParams>>,
-  TError,
-  { data: BodyType<PhaseParamsBody> },
-  TContext
-> => {
-  return useMutation(getSetPhaseParamsMutationOptions(options));
 };

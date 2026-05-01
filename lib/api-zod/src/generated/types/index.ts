@@ -37,6 +37,7 @@ export * from "./phase";
 export * from "./phaseConfig";
 export * from "./phaseConfigAttributes";
 export * from "./phaseParams";
+export * from "./phaseParamsBody";
 export * from "./phaseResponse";
 export * from "./showConfig";
 export * from "./showConfigAttributeTempo";

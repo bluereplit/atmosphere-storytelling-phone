@@ -37,6 +37,9 @@ export const getStateResponsePhaseParamsReverbMax = 1;
 export const getStateResponseAttributesVolumeMin = 0;
 export const getStateResponseAttributesVolumeMax = 1;
 
+export const getStateResponseAttributesDistanceMin = 0;
+export const getStateResponseAttributesDistanceMax = 1;
+
 export const GetStateResponse = zod.object({
   timestamp: zod
     .number()
@@ -80,6 +83,14 @@ export const GetStateResponse = zod.object({
         .number()
         .min(getStateResponseAttributesVolumeMin)
         .max(getStateResponseAttributesVolumeMax),
+      distance: zod
+        .number()
+        .min(getStateResponseAttributesDistanceMin)
+        .max(getStateResponseAttributesDistanceMax)
+        .optional()
+        .describe(
+          "Spatial positioning of the sound (0 = close, 1 = distant). Only present when distance has been set for this attribute.",
+        ),
     }),
   ),
   muted: zod.boolean(),
@@ -729,6 +740,75 @@ export const AudioUnmuteResponse = zod.object({
 });
 
 /**
+ * Updates one or more per-phase synthesis parameters (reverb wet mix, low-pass filter cutoff, and master pitch shift) for the currently active phase. Changes are applied immediately to the audio engine but are ephemeral — they are not written to show.json.
+
+ * @summary Set live phase synthesis parameters (reverb, LPF, pitch)
+ */
+export const setPhaseParamsBodyReverbMin = 0;
+export const setPhaseParamsBodyReverbMax = 1;
+
+export const setPhaseParamsBodyLpfFreqMin = 500;
+export const setPhaseParamsBodyLpfFreqMax = 20000;
+
+export const setPhaseParamsBodyMasterPitchMin = -12;
+export const setPhaseParamsBodyMasterPitchMax = 12;
+
+export const SetPhaseParamsBody = zod
+  .object({
+    reverb: zod
+      .number()
+      .min(setPhaseParamsBodyReverbMin)
+      .max(setPhaseParamsBodyReverbMax)
+      .optional()
+      .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+    lpfFreq: zod
+      .number()
+      .min(setPhaseParamsBodyLpfFreqMin)
+      .max(setPhaseParamsBodyLpfFreqMax)
+      .optional()
+      .describe("Low-pass filter cutoff frequency in Hz"),
+    masterPitch: zod
+      .number()
+      .min(setPhaseParamsBodyMasterPitchMin)
+      .max(setPhaseParamsBodyMasterPitchMax)
+      .optional()
+      .describe("Master pitch shift in semitones"),
+  })
+  .describe("Partial phase synthesis parameters for live update");
+
+export const setPhaseParamsResponseReverbMin = 0;
+export const setPhaseParamsResponseReverbMax = 1;
+
+export const setPhaseParamsResponseLpfFreqMin = 500;
+export const setPhaseParamsResponseLpfFreqMax = 20000;
+
+export const setPhaseParamsResponseMasterPitchMin = -12;
+export const setPhaseParamsResponseMasterPitchMax = 12;
+
+export const SetPhaseParamsResponse = zod
+  .object({
+    reverb: zod
+      .number()
+      .min(setPhaseParamsResponseReverbMin)
+      .max(setPhaseParamsResponseReverbMax)
+      .optional()
+      .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+    lpfFreq: zod
+      .number()
+      .min(setPhaseParamsResponseLpfFreqMin)
+      .max(setPhaseParamsResponseLpfFreqMax)
+      .optional()
+      .describe("Low-pass filter cutoff frequency in Hz"),
+    masterPitch: zod
+      .number()
+      .min(setPhaseParamsResponseMasterPitchMin)
+      .max(setPhaseParamsResponseMasterPitchMax)
+      .optional()
+      .describe("Master pitch shift in semitones"),
+  })
+  .describe("Partial phase synthesis parameters for live update");
+
+/**
  * @summary Get the current show configuration
  */
 export const getShowResponseIntensityMin = 0;
@@ -737,14 +817,26 @@ export const getShowResponseIntensityMax = 1;
 export const getShowResponsePhasesDaytimeParamsReverbMin = 0;
 export const getShowResponsePhasesDaytimeParamsReverbMax = 1;
 
+export const getShowResponsePhasesDaytimeIntensityMin = 0;
+export const getShowResponsePhasesDaytimeIntensityMax = 1;
+
 export const getShowResponsePhasesEveningParamsReverbMin = 0;
 export const getShowResponsePhasesEveningParamsReverbMax = 1;
+
+export const getShowResponsePhasesEveningIntensityMin = 0;
+export const getShowResponsePhasesEveningIntensityMax = 1;
 
 export const getShowResponsePhasesNightParamsReverbMin = 0;
 export const getShowResponsePhasesNightParamsReverbMax = 1;
 
+export const getShowResponsePhasesNightIntensityMin = 0;
+export const getShowResponsePhasesNightIntensityMax = 1;
+
 export const getShowResponsePhasesDawnParamsReverbMin = 0;
 export const getShowResponsePhasesDawnParamsReverbMax = 1;
+
+export const getShowResponsePhasesDawnIntensityMin = 0;
+export const getShowResponsePhasesDawnIntensityMax = 1;
 
 export const GetShowResponse = zod.object({
   environmentTheme: zod.enum([
@@ -768,70 +860,214 @@ export const GetShowResponse = zod.object({
     .max(getShowResponseIntensityMax),
   muted: zod.boolean(),
   phases: zod.object({
-    daytime: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(getShowResponsePhasesDaytimeParamsReverbMin)
-            .max(getShowResponsePhasesDaytimeParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
-    evening: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(getShowResponsePhasesEveningParamsReverbMin)
-            .max(getShowResponsePhasesEveningParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
-    night: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(getShowResponsePhasesNightParamsReverbMin)
-            .max(getShowResponsePhasesNightParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
-    dawn: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(getShowResponsePhasesDawnParamsReverbMin)
-            .max(getShowResponsePhasesDawnParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
+    daytime: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(getShowResponsePhasesDaytimeParamsReverbMin)
+              .max(getShowResponsePhasesDaytimeParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(getShowResponsePhasesDaytimeIntensityMin)
+          .max(getShowResponsePhasesDaytimeIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
+    evening: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(getShowResponsePhasesEveningParamsReverbMin)
+              .max(getShowResponsePhasesEveningParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(getShowResponsePhasesEveningIntensityMin)
+          .max(getShowResponsePhasesEveningIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
+    night: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(getShowResponsePhasesNightParamsReverbMin)
+              .max(getShowResponsePhasesNightParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(getShowResponsePhasesNightIntensityMin)
+          .max(getShowResponsePhasesNightIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
+    dawn: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(getShowResponsePhasesDawnParamsReverbMin)
+              .max(getShowResponsePhasesDawnParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(getShowResponsePhasesDawnIntensityMin)
+          .max(getShowResponsePhasesDawnIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
   }),
   attributeVolumes: zod.record(zod.string(), zod.number()),
   attributeTempo: zod.record(zod.string(), zod.number()),
@@ -846,14 +1082,26 @@ export const updateShowBodyIntensityMax = 1;
 export const updateShowBodyPhasesDaytimeParamsReverbMin = 0;
 export const updateShowBodyPhasesDaytimeParamsReverbMax = 1;
 
+export const updateShowBodyPhasesDaytimeIntensityMin = 0;
+export const updateShowBodyPhasesDaytimeIntensityMax = 1;
+
 export const updateShowBodyPhasesEveningParamsReverbMin = 0;
 export const updateShowBodyPhasesEveningParamsReverbMax = 1;
+
+export const updateShowBodyPhasesEveningIntensityMin = 0;
+export const updateShowBodyPhasesEveningIntensityMax = 1;
 
 export const updateShowBodyPhasesNightParamsReverbMin = 0;
 export const updateShowBodyPhasesNightParamsReverbMax = 1;
 
+export const updateShowBodyPhasesNightIntensityMin = 0;
+export const updateShowBodyPhasesNightIntensityMax = 1;
+
 export const updateShowBodyPhasesDawnParamsReverbMin = 0;
 export const updateShowBodyPhasesDawnParamsReverbMax = 1;
+
+export const updateShowBodyPhasesDawnIntensityMin = 0;
+export const updateShowBodyPhasesDawnIntensityMax = 1;
 
 export const UpdateShowBody = zod.object({
   environmentTheme: zod.enum([
@@ -877,70 +1125,214 @@ export const UpdateShowBody = zod.object({
     .max(updateShowBodyIntensityMax),
   muted: zod.boolean(),
   phases: zod.object({
-    daytime: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(updateShowBodyPhasesDaytimeParamsReverbMin)
-            .max(updateShowBodyPhasesDaytimeParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
-    evening: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(updateShowBodyPhasesEveningParamsReverbMin)
-            .max(updateShowBodyPhasesEveningParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
-    night: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(updateShowBodyPhasesNightParamsReverbMin)
-            .max(updateShowBodyPhasesNightParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
-    dawn: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(updateShowBodyPhasesDawnParamsReverbMin)
-            .max(updateShowBodyPhasesDawnParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
+    daytime: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(updateShowBodyPhasesDaytimeParamsReverbMin)
+              .max(updateShowBodyPhasesDaytimeParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(updateShowBodyPhasesDaytimeIntensityMin)
+          .max(updateShowBodyPhasesDaytimeIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
+    evening: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(updateShowBodyPhasesEveningParamsReverbMin)
+              .max(updateShowBodyPhasesEveningParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(updateShowBodyPhasesEveningIntensityMin)
+          .max(updateShowBodyPhasesEveningIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
+    night: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(updateShowBodyPhasesNightParamsReverbMin)
+              .max(updateShowBodyPhasesNightParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(updateShowBodyPhasesNightIntensityMin)
+          .max(updateShowBodyPhasesNightIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
+    dawn: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(updateShowBodyPhasesDawnParamsReverbMin)
+              .max(updateShowBodyPhasesDawnParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(updateShowBodyPhasesDawnIntensityMin)
+          .max(updateShowBodyPhasesDawnIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
   }),
   attributeVolumes: zod.record(zod.string(), zod.number()),
   attributeTempo: zod.record(zod.string(), zod.number()),
@@ -952,14 +1344,26 @@ export const updateShowResponseIntensityMax = 1;
 export const updateShowResponsePhasesDaytimeParamsReverbMin = 0;
 export const updateShowResponsePhasesDaytimeParamsReverbMax = 1;
 
+export const updateShowResponsePhasesDaytimeIntensityMin = 0;
+export const updateShowResponsePhasesDaytimeIntensityMax = 1;
+
 export const updateShowResponsePhasesEveningParamsReverbMin = 0;
 export const updateShowResponsePhasesEveningParamsReverbMax = 1;
+
+export const updateShowResponsePhasesEveningIntensityMin = 0;
+export const updateShowResponsePhasesEveningIntensityMax = 1;
 
 export const updateShowResponsePhasesNightParamsReverbMin = 0;
 export const updateShowResponsePhasesNightParamsReverbMax = 1;
 
+export const updateShowResponsePhasesNightIntensityMin = 0;
+export const updateShowResponsePhasesNightIntensityMax = 1;
+
 export const updateShowResponsePhasesDawnParamsReverbMin = 0;
 export const updateShowResponsePhasesDawnParamsReverbMax = 1;
+
+export const updateShowResponsePhasesDawnIntensityMin = 0;
+export const updateShowResponsePhasesDawnIntensityMax = 1;
 
 export const UpdateShowResponse = zod.object({
   environmentTheme: zod.enum([
@@ -983,70 +1387,214 @@ export const UpdateShowResponse = zod.object({
     .max(updateShowResponseIntensityMax),
   muted: zod.boolean(),
   phases: zod.object({
-    daytime: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(updateShowResponsePhasesDaytimeParamsReverbMin)
-            .max(updateShowResponsePhasesDaytimeParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
-    evening: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(updateShowResponsePhasesEveningParamsReverbMin)
-            .max(updateShowResponsePhasesEveningParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
-    night: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(updateShowResponsePhasesNightParamsReverbMin)
-            .max(updateShowResponsePhasesNightParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
-    dawn: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(updateShowResponsePhasesDawnParamsReverbMin)
-            .max(updateShowResponsePhasesDawnParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
+    daytime: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(updateShowResponsePhasesDaytimeParamsReverbMin)
+              .max(updateShowResponsePhasesDaytimeParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(updateShowResponsePhasesDaytimeIntensityMin)
+          .max(updateShowResponsePhasesDaytimeIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
+    evening: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(updateShowResponsePhasesEveningParamsReverbMin)
+              .max(updateShowResponsePhasesEveningParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(updateShowResponsePhasesEveningIntensityMin)
+          .max(updateShowResponsePhasesEveningIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
+    night: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(updateShowResponsePhasesNightParamsReverbMin)
+              .max(updateShowResponsePhasesNightParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(updateShowResponsePhasesNightIntensityMin)
+          .max(updateShowResponsePhasesNightIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
+    dawn: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(updateShowResponsePhasesDawnParamsReverbMin)
+              .max(updateShowResponsePhasesDawnParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(updateShowResponsePhasesDawnIntensityMin)
+          .max(updateShowResponsePhasesDawnIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
   }),
   attributeVolumes: zod.record(zod.string(), zod.number()),
   attributeTempo: zod.record(zod.string(), zod.number()),
@@ -1061,14 +1609,26 @@ export const resetShowResponseIntensityMax = 1;
 export const resetShowResponsePhasesDaytimeParamsReverbMin = 0;
 export const resetShowResponsePhasesDaytimeParamsReverbMax = 1;
 
+export const resetShowResponsePhasesDaytimeIntensityMin = 0;
+export const resetShowResponsePhasesDaytimeIntensityMax = 1;
+
 export const resetShowResponsePhasesEveningParamsReverbMin = 0;
 export const resetShowResponsePhasesEveningParamsReverbMax = 1;
+
+export const resetShowResponsePhasesEveningIntensityMin = 0;
+export const resetShowResponsePhasesEveningIntensityMax = 1;
 
 export const resetShowResponsePhasesNightParamsReverbMin = 0;
 export const resetShowResponsePhasesNightParamsReverbMax = 1;
 
+export const resetShowResponsePhasesNightIntensityMin = 0;
+export const resetShowResponsePhasesNightIntensityMax = 1;
+
 export const resetShowResponsePhasesDawnParamsReverbMin = 0;
 export const resetShowResponsePhasesDawnParamsReverbMax = 1;
+
+export const resetShowResponsePhasesDawnIntensityMin = 0;
+export const resetShowResponsePhasesDawnIntensityMax = 1;
 
 export const ResetShowResponse = zod.object({
   environmentTheme: zod.enum([
@@ -1092,70 +1652,214 @@ export const ResetShowResponse = zod.object({
     .max(resetShowResponseIntensityMax),
   muted: zod.boolean(),
   phases: zod.object({
-    daytime: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(resetShowResponsePhasesDaytimeParamsReverbMin)
-            .max(resetShowResponsePhasesDaytimeParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
-    evening: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(resetShowResponsePhasesEveningParamsReverbMin)
-            .max(resetShowResponsePhasesEveningParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
-    night: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(resetShowResponsePhasesNightParamsReverbMin)
-            .max(resetShowResponsePhasesNightParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
-    dawn: zod.object({
-      attributes: zod.record(zod.string(), zod.boolean()),
-      params: zod
-        .object({
-          reverb: zod
-            .number()
-            .min(resetShowResponsePhasesDawnParamsReverbMin)
-            .max(resetShowResponsePhasesDawnParamsReverbMax)
-            .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
-          lpfFreq: zod
-            .number()
-            .describe("Low-pass filter cutoff frequency in Hz"),
-          masterPitch: zod.number().describe("Master pitch shift in semitones"),
-        })
-        .describe("Per-phase synthesis parameters applied to the audio engine"),
-    }),
+    daytime: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(resetShowResponsePhasesDaytimeParamsReverbMin)
+              .max(resetShowResponsePhasesDaytimeParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(resetShowResponsePhasesDaytimeIntensityMin)
+          .max(resetShowResponsePhasesDaytimeIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
+    evening: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(resetShowResponsePhasesEveningParamsReverbMin)
+              .max(resetShowResponsePhasesEveningParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(resetShowResponsePhasesEveningIntensityMin)
+          .max(resetShowResponsePhasesEveningIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
+    night: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(resetShowResponsePhasesNightParamsReverbMin)
+              .max(resetShowResponsePhasesNightParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(resetShowResponsePhasesNightIntensityMin)
+          .max(resetShowResponsePhasesNightIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
+    dawn: zod
+      .object({
+        attributes: zod.record(zod.string(), zod.boolean()),
+        params: zod
+          .object({
+            reverb: zod
+              .number()
+              .min(resetShowResponsePhasesDawnParamsReverbMin)
+              .max(resetShowResponsePhasesDawnParamsReverbMax)
+              .describe("Reverb wet mix (0 = dry, 1 = full wet)"),
+            lpfFreq: zod
+              .number()
+              .describe("Low-pass filter cutoff frequency in Hz"),
+            masterPitch: zod
+              .number()
+              .describe("Master pitch shift in semitones"),
+          })
+          .describe(
+            "Per-phase synthesis parameters applied to the audio engine",
+          ),
+        environmentTheme: zod
+          .enum([
+            "forest",
+            "ocean",
+            "mountain",
+            "desert",
+            "city",
+            "mystical",
+            "medieval",
+            "underwater",
+            "cosmic",
+            "cave",
+            "arctic",
+            "jungle",
+            "tavern",
+          ])
+          .optional()
+          .describe(
+            "Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.\n",
+          ),
+        intensity: zod
+          .number()
+          .min(resetShowResponsePhasesDawnIntensityMin)
+          .max(resetShowResponsePhasesDawnIntensityMax)
+          .optional()
+          .describe(
+            "Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.\n",
+          ),
+      })
+      .describe(
+        "Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.\n",
+      ),
   }),
   attributeVolumes: zod.record(zod.string(), zod.number()),
   attributeTempo: zod.record(zod.string(), zod.number()),

@@ -16,10 +16,25 @@ new show configuration, or POST /api/show/reset to restore and apply defaults.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { EnvironmentTheme } from "./environmentTheme";
 import type { PhaseConfigAttributes } from "./phaseConfigAttributes";
 import type { PhaseParams } from "./phaseParams";
 
+/**
+ * Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.
+
+ */
 export interface PhaseConfig {
   attributes: PhaseConfigAttributes;
   params: PhaseParams;
+  /** Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.
+   */
+  environmentTheme?: EnvironmentTheme;
+  /**
+   * Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.
+
+   * @minimum 0
+   * @maximum 1
+   */
+  intensity?: number;
 }

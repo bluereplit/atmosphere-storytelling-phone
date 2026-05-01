@@ -17,17 +17,26 @@ new show configuration, or POST /api/show/reset to restore and apply defaults.
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AttributeState {
-  enabled: boolean;
+/**
+ * Partial phase synthesis parameters for live update
+ */
+export interface PhaseParamsBody {
   /**
+   * Reverb wet mix (0 = dry, 1 = full wet)
    * @minimum 0
    * @maximum 1
    */
-  volume: number;
+  reverb?: number;
   /**
-   * Spatial positioning of the sound (0 = close, 1 = distant). Only present when distance has been set for this attribute.
-   * @minimum 0
-   * @maximum 1
+   * Low-pass filter cutoff frequency in Hz
+   * @minimum 500
+   * @maximum 20000
    */
-  distance?: number;
+  lpfFreq?: number;
+  /**
+   * Master pitch shift in semitones
+   * @minimum -12
+   * @maximum 12
+   */
+  masterPitch?: number;
 }

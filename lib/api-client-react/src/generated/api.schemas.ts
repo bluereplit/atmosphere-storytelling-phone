@@ -98,6 +98,12 @@ export interface AttributeState {
    * @maximum 1
    */
   volume: number;
+  /**
+   * Spatial positioning of the sound (0 = close, 1 = distant). Only present when distance has been set for this attribute.
+   * @minimum 0
+   * @maximum 1
+   */
+  distance?: number;
 }
 
 /**
@@ -149,13 +155,19 @@ export interface AudioStatus {
 
 export type PhaseConfigAttributes = { [key: string]: boolean };
 
+/**
+ * Per-scene attribute enables and synthesis parameters. The optional `environmentTheme` and `intensity` fields act as per-scene overrides; when absent, the show-level defaults apply during transitions.
+
+ */
 export interface PhaseConfig {
   attributes: PhaseConfigAttributes;
   params: PhaseParams;
-  /** Optional per-scene environment theme override (falls back to ShowConfig.environmentTheme) */
+  /** Optional per-scene environment theme override. When set, this theme is applied instead of ShowConfig.environmentTheme when transitioning to this phase.
+   */
   environmentTheme?: EnvironmentTheme;
   /**
-   * Optional per-scene intensity override (falls back to ShowConfig.intensity)
+   * Optional per-scene intensity override (0.0–1.0). When set, this value is applied instead of ShowConfig.intensity when transitioning to this phase.
+
    * @minimum 0
    * @maximum 1
    */
@@ -230,17 +242,32 @@ export interface MuteResponse {
   muted: boolean;
 }
 
+/**
+ * Partial phase synthesis parameters for live update
+ */
+export interface PhaseParamsBody {
+  /**
+   * Reverb wet mix (0 = dry, 1 = full wet)
+   * @minimum 0
+   * @maximum 1
+   */
+  reverb?: number;
+  /**
+   * Low-pass filter cutoff frequency in Hz
+   * @minimum 500
+   * @maximum 20000
+   */
+  lpfFreq?: number;
+  /**
+   * Master pitch shift in semitones
+   * @minimum -12
+   * @maximum 12
+   */
+  masterPitch?: number;
+}
+
 export interface OverlayToggleResult {
   overlayToggle: boolean;
   /** Unix timestamp (ms) of the toggle event */
   timestamp: number;
-}
-
-export interface PhaseParamsBody {
-  /** Reverb wet mix (0 = dry, 1 = full wet) */
-  reverb?: number;
-  /** Low-pass filter cutoff frequency in Hz (500–20000) */
-  lpfFreq?: number;
-  /** Master pitch shift in semitones (-12 to +12) */
-  masterPitch?: number;
 }

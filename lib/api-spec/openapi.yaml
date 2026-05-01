@@ -531,6 +531,11 @@ components:
           type: number
           minimum: 0
           maximum: 1
+        distance:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Spatial positioning of the sound (0 = close, 1 = distant). Only present when distance has been set for this attribute.
       required:
         - enabled
         - volume
