@@ -1,7 +1,12 @@
 import { Router, type IRouter } from "express";
 import { buildDefaultShow, type ShowConfig } from "../lib/themes.config.js";
 import { saveShow } from "../lib/showConfig.js";
-import { initFromShow, applyShowConfig } from "../lib/stateManager.js";
+import {
+  initFromShow,
+  applyShowConfig,
+  teardown,
+  startAudioEngine,
+} from "../lib/stateManager.js";
 
 export function makeShowRouter(
   getShow: () => ShowConfig,
@@ -42,7 +47,11 @@ export function makeShowRouter(
     const defaults = buildDefaultShow();
     setShow(defaults);
     saveShow(defaults);
+    // Tear down all live synth nodes, then reinitialize in-memory state,
+    // then restart the audio engine (which also emits a state-change broadcast).
+    teardown();
     initFromShow(defaults);
+    startAudioEngine(defaults);
     res.json(defaults);
   });
 

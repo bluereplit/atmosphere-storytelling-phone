@@ -2,7 +2,7 @@
 // This script boots scsynth and loads all SynthDefs
 
 (
-var startupTime = Date.localtime;
+var scDir = thisProcess.nowExecutingPath.dirname;
 
 s = Server.local;
 
@@ -15,34 +15,27 @@ Server.default.options.memSize = 65536;
 Server.default.options.sampleRate = 44100;
 Server.default.options.blockSize = 512;
 
-// Use ALSA on Linux (Raspberry Pi)
+// Use system default ALSA device on Linux (Raspberry Pi)
 if (thisProcess.platform == \linux, {
-    Server.default.options.device = (
-        Platform.case(\linux, {
-            // Try to use the default ALSA device
-            nil // nil = use system default
-        })
-    );
-});
-
-ServerBoot.add({
-    "SuperCollider server booted".postln;
-
-    // Load all SynthDefs
-    thisProcess.nowExecutingPath.dirname +/+ "envThemes.scd" => load;
-    thisProcess.nowExecutingPath.dirname +/+ "attributes.scd" => load;
-
-    // Signal to Node.js that we are ready
-    1.wait;
-    "SynthDefs loaded".postln;
-    "SuperCollider ready".postln;
+    Server.default.options.device = nil;
 });
 
 ServerQuit.add({
     "SuperCollider server quit".postln;
 });
 
+// waitForBoot runs its function inside a Routine, so s.sync is valid here
 s.waitForBoot({
-    "Server booted successfully".postln;
+    "SuperCollider server booted".postln;
+
+    // Load SynthDef files — each calls SynthDef(\name, { ... }).add
+    (scDir +/+ "envThemes.scd").load;
+    (scDir +/+ "attributes.scd").load;
+
+    // s.sync waits until the server has acknowledged all pending SynthDef.add messages
+    s.sync;
+
+    "SynthDefs loaded".postln;
+    "SuperCollider ready".postln;
 });
 )
