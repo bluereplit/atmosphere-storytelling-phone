@@ -20,9 +20,11 @@ from layers import (
     MoonLayer, StarsLayer, AuroraLayer,
     MistLayer, DawnBirdsLayer,
 )
+from env_overlays import make_overlay, BaseOverlay
 
 TWO_PI = math.pi * 2
 
+OVERLAY_TRANSITION_DURATION = 1.5   # seconds for env-theme overlay crossfade
 
 # ─────────────────────────────────────────────────────────────
 #  Environment theme → colour tint
@@ -121,6 +123,14 @@ class BaseRenderer:
         self._time = 0.0
         self._intensity: float = 1.0    # 0.0–1.0 from backend
         self._theme: str = "forest"     # current environment theme
+        # Overlay crossfade state
+        # _theme_initialised is False until the first set_theme() call so the
+        # renderer can snap directly to the correct overlay without a crossfade
+        # from the default "forest" overlay.
+        self._theme_initialised: bool = False
+        self._current_overlay: BaseOverlay = make_overlay("forest")
+        self._next_overlay: BaseOverlay | None = None
+        self._overlay_progress: float = 1.0   # 1.0 = settled on _current_overlay
 
     def _ensure_bg(self, w: int, h: int) -> pygame.Surface:
         if self._bg is None or self._bg.get_size() != (w, h):
@@ -135,6 +145,15 @@ class BaseRenderer:
         self._time += dt
         for layer in self._layers.values():
             layer.update(dt, w, h)
+        # Advance overlay crossfade
+        self._current_overlay.update(dt, w, h)
+        if self._next_overlay is not None:
+            self._next_overlay.update(dt, w, h)
+            self._overlay_progress = min(1.0,
+                self._overlay_progress + dt / OVERLAY_TRANSITION_DURATION)
+            if self._overlay_progress >= 1.0:
+                self._current_overlay = self._next_overlay
+                self._next_overlay = None
 
     def draw(self, surface: pygame.Surface) -> None:
         w, h = surface.get_size()
@@ -149,6 +168,13 @@ class BaseRenderer:
             tint_surf = pygame.Surface((w, h), pygame.SRCALPHA)
             tint_surf.fill(tint)
             surface.blit(tint_surf, (0, 0))
+        # Draw environment overlays with crossfade
+        self._current_overlay._alpha = 1.0 - self._overlay_progress \
+            if self._next_overlay is not None else 1.0
+        self._current_overlay.draw(surface)
+        if self._next_overlay is not None:
+            self._next_overlay._alpha = self._overlay_progress
+            self._next_overlay.draw(surface)
         # Apply intensity darkening: at intensity=0 → max ~70% darkness overlay
         dim_alpha = int((1.0 - max(0.0, min(1.0, self._intensity))) * 180)
         if dim_alpha > 2:
@@ -168,7 +194,26 @@ class BaseRenderer:
         self._intensity = max(0.0, min(1.0, intensity))
 
     def set_theme(self, theme: str) -> None:
+        if theme == self._theme and self._theme_initialised:
+            return
+        old_theme = self._theme
         self._theme = theme
+        new_overlay = make_overlay(theme)
+        if not self._theme_initialised:
+            # First call — snap immediately, no crossfade needed
+            self._current_overlay = new_overlay
+            self._next_overlay = None
+            self._overlay_progress = 1.0
+            self._theme_initialised = True
+            return
+        self._theme_initialised = True
+        if theme == old_theme:
+            return
+        if self._next_overlay is not None:
+            # Already mid-transition: cut to current in-progress target, restart
+            self._current_overlay = self._next_overlay
+        self._next_overlay = new_overlay
+        self._overlay_progress = 0.0
 
 
 # ─────────────────────────────────────────────────────────────
