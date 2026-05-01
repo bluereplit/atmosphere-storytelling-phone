@@ -15,6 +15,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronRight, Activity, Volume2 } from "lucide-react";
@@ -141,28 +142,41 @@ function AttributeControl({ name, initialTempo }: { name: AttributeName; initial
   const isTempo = TEMPO_ATTRIBUTES.includes(name as string);
 
   return (
-    <div className={`p-3 rounded-md border flex flex-col gap-3 transition-colors ${enabled ? "bg-primary/5 border-primary/20" : "bg-card border-border"}`}>
+    <div className={`p-3 rounded-md border flex flex-col gap-2 transition-colors ${enabled ? "bg-primary/5 border-primary/20" : "bg-card border-border"}`}>
       <div className="flex items-center justify-between">
-        <span className={`font-mono text-sm font-medium ${enabled ? "text-primary glow-text" : "text-muted-foreground"}`}>
+        <span className={`font-mono text-sm font-medium truncate mr-2 ${enabled ? "text-primary glow-text" : "text-muted-foreground"}`}>
           {(name as string).replace(/_/g, " ")}
         </span>
         <Switch checked={enabled} onCheckedChange={handleCheckedChange} />
       </div>
 
-      {enabled && (
-        <div className="space-y-3 pt-2 border-t border-border/50">
-          <div className="flex items-center gap-2">
-            <Volume2 className="h-4 w-4 text-muted-foreground shrink-0" />
-            <Slider value={[localVol]} min={0} max={100} step={1} onValueChange={handleVolumeChange} className="flex-1" />
-            <span className="text-xs text-muted-foreground w-9 text-right shrink-0">{localVol}%</span>
-          </div>
-          {isTempo && (
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-muted-foreground shrink-0" />
-              <Slider value={[localTempo]} min={20} max={200} step={1} onValueChange={handleTempoChange} className="flex-1" />
-              <span className="text-xs text-muted-foreground w-12 text-right shrink-0">{localTempo} bpm</span>
-            </div>
-          )}
+      {/* Volume knob — always visible so operators can pre-set before enabling */}
+      <div className={`flex items-center gap-2 ${enabled ? "" : "opacity-50"}`}>
+        <Volume2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <Slider
+          value={[localVol]}
+          min={0}
+          max={100}
+          step={1}
+          onValueChange={handleVolumeChange}
+          className="flex-1"
+        />
+        <span className="text-xs text-muted-foreground w-9 text-right shrink-0">{localVol}%</span>
+      </div>
+
+      {/* BPM — always visible for rhythm attributes */}
+      {isTempo && (
+        <div className={`flex items-center gap-2 ${enabled ? "" : "opacity-50"}`}>
+          <Activity className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <Slider
+            value={[localTempo]}
+            min={20}
+            max={200}
+            step={1}
+            onValueChange={handleTempoChange}
+            className="flex-1"
+          />
+          <span className="text-xs text-muted-foreground w-12 text-right shrink-0">{localTempo} bpm</span>
         </div>
       )}
     </div>
@@ -174,15 +188,63 @@ function AttributeGroup({ title, attributes, attributeTempos }: {
   attributes: string[];
   attributeTempos: Record<string, number>;
 }) {
+  const { state } = useConnection();
+  const queryClient = useQueryClient();
+  const onMutation = useAttributeOn();
+  const offMutation = useAttributeOff();
   const [open, setOpen] = useState(true);
+
+  const activeCount = attributes.filter(attr => state?.attributes?.[attr as AttributeName]?.enabled).length;
+
+  const handleEnableAll = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const disabled = attributes.filter(attr => !state?.attributes?.[attr as AttributeName]?.enabled);
+    await Promise.all(disabled.map(name => onMutation.mutateAsync({ name: name as AttributeName })));
+    queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() });
+  };
+
+  const handleDisableAll = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const enabled = attributes.filter(attr => state?.attributes?.[attr as AttributeName]?.enabled);
+    await Promise.all(enabled.map(name => offMutation.mutateAsync({ name: name as AttributeName })));
+    queryClient.invalidateQueries({ queryKey: getGetStateQueryKey() });
+  };
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="space-y-2">
-      <CollapsibleTrigger className="flex items-center justify-between w-full p-2 bg-secondary rounded-md hover:bg-secondary/80 transition-colors">
-        <span className="font-semibold text-sm tracking-widest uppercase">{title}</span>
-        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-      </CollapsibleTrigger>
-      <CollapsibleContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 pt-2">
+      {/* Group header — trigger and bulk-action buttons are siblings, not nested */}
+      <div className="flex items-center gap-1 bg-secondary rounded-md hover:bg-secondary/80 transition-colors group pr-1">
+        <CollapsibleTrigger className="flex items-center gap-3 flex-1 p-2 text-left">
+          <span className="font-semibold text-sm tracking-widest uppercase">{title}</span>
+          {activeCount > 0 && (
+            <span className="text-xs font-mono text-primary bg-primary/10 border border-primary/20 rounded px-1.5 py-0.5 leading-none">
+              {activeCount}/{attributes.length}
+            </span>
+          )}
+          <span className="ml-auto">
+            {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+          </span>
+        </CollapsibleTrigger>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-xs font-mono text-primary hover:text-primary hover:bg-primary/10 shrink-0 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
+          onClick={handleEnableAll}
+          title="Enable all in group"
+        >
+          All On
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-xs font-mono text-muted-foreground hover:text-foreground shrink-0 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
+          onClick={handleDisableAll}
+          title="Disable all in group"
+        >
+          All Off
+        </Button>
+      </div>
+      <CollapsibleContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 pt-2">
         {attributes.map(attr => (
           <AttributeControl
             key={attr}

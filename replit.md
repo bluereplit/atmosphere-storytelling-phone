@@ -151,9 +151,12 @@ Command: `SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy python3 artifacts/atmo
 
 - **WebSocket**: Connects to `wss://<host>/ws`; auto-reconnects every 2s on drop; live state merges over query initial state
 - **Scene buttons**: useTransitionTo + useTransitionNext; active scene highlighted in amber
-- **Attribute groups**: Nature, Weather, Wildlife, City/Urban, Mystical/Arcane, Dramatic/Tension
-- **Tempo extras**: heartbeat, war_drums, blacksmith show a BPM slider when enabled (useAttributeTempo)
-- **Debounce**: Volume and intensity sliders debounce 250ms before sending API calls
+- **Attribute groups**: Nature, Nature Extended, City/Urban, Mystical/Arcane, Dramatic/Tension, Medieval/Historical
+- **Volume always visible**: Each attribute card shows a volume slider at all times (dimmed when disabled), allowing operators to pre-set volume before enabling a sound
+- **Tempo extras**: heartbeat, war_drums, blacksmith show a BPM slider at all times (useAttributeTempo)
+- **Group bulk controls**: "All On" / "All Off" buttons appear on hover over each group header for quick scene staging
+- **Active count badge**: Group header shows a live N/total badge when any attributes in the group are enabled
+- **Debounce**: Volume and intensity sliders debounce 300ms before sending API calls
 - **Dark theme**: `.dark` added to `<html>` on mount; amber/gold accent palette
 
 ### Serving architecture
