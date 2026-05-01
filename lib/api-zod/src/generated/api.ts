@@ -192,6 +192,8 @@ export const AttributeOnParams = zod.object({
     "blacksmith",
     "church_bells",
     "tavern_crowd",
+    "seagulls",
+    "dripping_cave",
   ]),
 });
 
@@ -233,6 +235,8 @@ export const AttributeOnResponse = zod.object({
     "blacksmith",
     "church_bells",
     "tavern_crowd",
+    "seagulls",
+    "dripping_cave",
   ]),
   enabled: zod.boolean(),
 });
@@ -278,6 +282,8 @@ export const AttributeOffParams = zod.object({
     "blacksmith",
     "church_bells",
     "tavern_crowd",
+    "seagulls",
+    "dripping_cave",
   ]),
 });
 
@@ -319,6 +325,8 @@ export const AttributeOffResponse = zod.object({
     "blacksmith",
     "church_bells",
     "tavern_crowd",
+    "seagulls",
+    "dripping_cave",
   ]),
   enabled: zod.boolean(),
 });
@@ -364,6 +372,8 @@ export const AttributeToggleParams = zod.object({
     "blacksmith",
     "church_bells",
     "tavern_crowd",
+    "seagulls",
+    "dripping_cave",
   ]),
 });
 
@@ -405,6 +415,8 @@ export const AttributeToggleResponse = zod.object({
     "blacksmith",
     "church_bells",
     "tavern_crowd",
+    "seagulls",
+    "dripping_cave",
   ]),
   enabled: zod.boolean(),
 });
@@ -450,6 +462,8 @@ export const AttributeVolumeParams = zod.object({
     "blacksmith",
     "church_bells",
     "tavern_crowd",
+    "seagulls",
+    "dripping_cave",
   ]),
 });
 
@@ -495,6 +509,8 @@ export const AttributeVolumeResponse = zod.object({
     "blacksmith",
     "church_bells",
     "tavern_crowd",
+    "seagulls",
+    "dripping_cave",
   ]),
   volume: zod.number(),
 });
@@ -540,6 +556,8 @@ export const AttributeTempoParams = zod.object({
     "blacksmith",
     "church_bells",
     "tavern_crowd",
+    "seagulls",
+    "dripping_cave",
   ]),
 });
 
@@ -585,6 +603,8 @@ export const AttributeTempoResponse = zod.object({
     "blacksmith",
     "church_bells",
     "tavern_crowd",
+    "seagulls",
+    "dripping_cave",
   ]),
   tempo: zod.number(),
 });
@@ -630,6 +650,8 @@ export const AttributeDistanceParams = zod.object({
     "blacksmith",
     "church_bells",
     "tavern_crowd",
+    "seagulls",
+    "dripping_cave",
   ]),
 });
 
@@ -675,6 +697,8 @@ export const AttributeDistanceResponse = zod.object({
     "blacksmith",
     "church_bells",
     "tavern_crowd",
+    "seagulls",
+    "dripping_cave",
   ]),
   distance: zod.number(),
 });

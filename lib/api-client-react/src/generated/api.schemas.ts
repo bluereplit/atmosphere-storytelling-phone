@@ -76,6 +76,8 @@ export const AttributeName = {
   blacksmith: "blacksmith",
   church_bells: "church_bells",
   tavern_crowd: "tavern_crowd",
+  seagulls: "seagulls",
+  dripping_cave: "dripping_cave",
 } as const;
 
 export interface AttributeState {

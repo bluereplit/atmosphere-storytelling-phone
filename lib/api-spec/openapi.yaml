@@ -478,6 +478,8 @@ components:
         - blacksmith
         - church_bells
         - tavern_crowd
+        - seagulls
+        - dripping_cave
 
     AttributeState:
       type: object

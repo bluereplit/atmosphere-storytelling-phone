@@ -107,7 +107,7 @@ SynthDef(\attr_frogs, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     var ampLag = Lag.kr(amp, fadeTime);
     var rate = intLag.linlin(0, 1, 0.3, 1.5);
     var croak = Mix.fill(3, { |i|
-        var freq = [150, 180, 210] !! i;
+        var freq = [150, 180, 210].wrapAt(i);
         Resonz.ar(
             BrownNoise.ar(1.0),
             freq,
@@ -311,7 +311,7 @@ SynthDef(\attr_singing_bowls, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     var ampLag = Lag.kr(amp, fadeTime);
     var rate = intLag.linlin(0, 1, 0.05, 0.2);
     var bowl = Mix.fill(3, { |i|
-        var freq = [196, 261.6, 329.6] !! i;
+        var freq = [196, 261.6, 329.6].wrapAt(i);
         Resonz.ar(
             Decay.ar(Dust.ar(rate + (i * 0.03)), 3.0, 0.4),
             freq,
@@ -328,7 +328,7 @@ SynthDef(\attr_chimes, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     var ampLag = Lag.kr(amp, fadeTime);
     var rate = intLag.linlin(0, 1, 0.2, 1.5);
     var chime = Mix.fill(5, { |i|
-        var freq = [1047, 1175, 1319, 1480, 1661] !! i;
+        var freq = [1047, 1175, 1319, 1480, 1661].wrapAt(i);
         SinOsc.ar(freq, 0, Decay.ar(Dust.ar(rate * (i + 1) * 0.2), 1.5, 0.1 / (i + 1)))
     });
     var sig = FreeVerb.ar(chime, 0.7, 0.95, 0.2);
@@ -353,7 +353,7 @@ SynthDef(\attr_choir_pad, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     var ampLag = Lag.kr(amp, fadeTime);
     var formants = [730, 1090, 2440];
     var choir = Mix.fill(3, { |i|
-        var freq = formants !! i;
+        var freq = formants.wrapAt(i);
         BPF.ar(
             Saw.ar(110 * (1 + (LFNoise1.kr(0.02 + i * 0.003).range(-0.003, 0.003))), 0.1),
             freq,
@@ -457,7 +457,7 @@ SynthDef(\attr_church_bells, { |amp=0.0, intensity=0.3, fadeTime=1.0|
     var ampLag = Lag.kr(amp, fadeTime);
     var rate = intLag.linlin(0, 1, 0.04, 0.15);
     var toll = Mix.fill(3, { |i|
-        var freq = [130.8, 174.6, 196.0] !! i;
+        var freq = [130.8, 174.6, 196.0].wrapAt(i);
         SinOsc.ar(freq, 0, Decay.ar(Dust.ar(rate + (i * 0.02)), 3.0, 0.25 / (i + 1)))
     });
     var sig = GVerb.ar(toll, 80, 6.0, 0.4);

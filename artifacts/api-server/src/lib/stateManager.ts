@@ -308,6 +308,61 @@ export function startAudioEngine(show: ShowConfig): void {
   emit();
 }
 
+export function applyShowConfig(show: ShowConfig): void {
+  if (show.environmentTheme !== environmentTheme) {
+    applyTheme(show.environmentTheme);
+  }
+
+  if (show.intensity !== intensity) {
+    setIntensity(show.intensity);
+  }
+
+  if (show.muted !== muted) {
+    setMuted(show.muted);
+  }
+
+  for (const name of ATTRIBUTE_NAMES) {
+    const vol = show.attributeVolumes[name] ?? 0.7;
+    if (vol !== (attrVolumes.get(name) ?? 0.7)) {
+      setAttributeVolume(name, vol);
+    }
+
+    const tempo = show.attributeTempo[name];
+    if (tempo !== undefined) {
+      setAttributeExtra(name, "tempo", tempo);
+    }
+  }
+
+  const phaseConfig = show.phases[currentPhase];
+  for (const name of ATTRIBUTE_NAMES) {
+    const shouldBeEnabled = phaseConfig?.attributes[name] ?? false;
+    const currentlyEnabled = attrEnabled.get(name) ?? false;
+    if (shouldBeEnabled !== currentlyEnabled) {
+      if (shouldBeEnabled) {
+        enableAttribute(name);
+      } else {
+        disableAttribute(name);
+      }
+    }
+  }
+
+  currentPhaseParams = {
+    ...(DEFAULT_PHASE_PARAMS[currentPhase]),
+    ...(phaseConfig?.params ?? {}),
+  };
+
+  if (isSuperColliderReady() && themeNodeId >= 0) {
+    setSynth(themeNodeId, {
+      reverb:      currentPhaseParams.reverb,
+      lpfFreq:     currentPhaseParams.lpfFreq,
+      masterPitch: currentPhaseParams.masterPitch,
+      fadeTime:    PHASE_CROSSFADE_TIME,
+    });
+  }
+
+  emit();
+}
+
 export function teardown(): void {
   freeAllSynths();
   attrNodeIds.clear();

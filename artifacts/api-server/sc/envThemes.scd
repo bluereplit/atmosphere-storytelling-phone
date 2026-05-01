@@ -204,7 +204,7 @@ SynthDef(\env_mystical, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0
     // Bell overtones: sporadic ringing
     bells = Mix.fill(3, { |i|
         SinOsc.ar(
-            [293.7, 440, 659] !! i,
+            [293.7, 440, 659].wrapAt(i),
             0,
             Decay.ar(Dust.ar(0.15 + intLag * 0.3), 2.0, 0.04)
         )
@@ -403,7 +403,7 @@ SynthDef(\env_arctic, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
 
 // --- JUNGLE ---
 SynthDef(\env_jungle, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, gate=1, reverb=0.15, lpfFreq=12000, masterPitch=0|
-    var env, sig, insectBed, reverb, birdCalls;
+    var env, sig, insectBed, jungleReverb, birdCalls;
     env = Linen.kr(gate, fadeTime, 1.0, fadeTime, 2);
     var intLag = Lag.kr(intensity, 2.0);
 
@@ -427,9 +427,9 @@ SynthDef(\env_jungle, { |amp=1.0, intensity=0.3, phaseOffset=0.0, fadeTime=3.0, 
     });
 
     // Wet reverb: deep jungle
-    reverb = GVerb.ar(insectBed + birdCalls, 50, 4.0, 0.7);
+    jungleReverb = GVerb.ar(insectBed + birdCalls, 50, 4.0, 0.7);
 
-    sig = reverb.dup * 0.4;
+    sig = jungleReverb.dup * 0.4;
     // Phase post-processing: LPF darkens timbre, pitch shift transposes, reverb adds tail
     sig = RLPF.ar(sig, Lag.kr(lpfFreq.clip(100, 20000), 2.0), 0.85);
     sig = PitchShift.ar(sig, 0.1, Lag.kr(masterPitch.midiratio, 2.0), 0, 0.01);

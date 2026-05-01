@@ -70,7 +70,10 @@ export function startSuperCollider(): void {
       const text = data.toString().trim();
       if (text) {
         logger.info({ sc: text }, "SuperCollider");
-        if (text.includes("SuperCollider ready") || text.includes("SynthDefs loaded")) {
+        if (
+          !isReady &&
+          (text.includes("SuperCollider ready") || text.includes("SynthDefs loaded"))
+        ) {
           isReady = true;
           oscClient = createOscClient();
           logger.info("SuperCollider audio engine ready");

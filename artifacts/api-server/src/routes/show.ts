@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { buildDefaultShow, type ShowConfig } from "../lib/themes.config.js";
 import { saveShow } from "../lib/showConfig.js";
-import { initFromShow } from "../lib/stateManager.js";
+import { initFromShow, applyShowConfig } from "../lib/stateManager.js";
 
 export function makeShowRouter(
   getShow: () => ShowConfig,
@@ -34,6 +34,7 @@ export function makeShowRouter(
     };
     setShow(updated);
     saveShow(updated);
+    applyShowConfig(updated);
     res.json(updated);
   });
 
