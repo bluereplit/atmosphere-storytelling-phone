@@ -1,6 +1,14 @@
-// test_all.scd — Validate all SynthDefs load and produce non-zero audio
+// test_all.scd — HARDWARE INTEGRATION TEST (run on the Raspberry Pi only)
 //
-// Run from the sc/ directory:
+// This file requires a live audio server (scsynth) and physical audio output.
+// It cannot be used for CI / pre-commit syntax checking.
+//
+// For fast pre-deployment syntax checking (no server needed) use:
+//   bash scripts/check_sc_syntax.sh          # from the repository root
+// That script calls sc/check_syntax_helper.scd via sclang's interpreter and
+// exits non-zero on any parse error without booting the audio server.
+//
+// Run this file from the sc/ directory on the Pi:
 //   sclang test_all.scd
 //
 // What this tests:

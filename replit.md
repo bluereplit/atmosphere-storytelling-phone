@@ -62,6 +62,19 @@ All sound is programmatically generated via SuperCollider SynthDefs. No file-bas
 | `sc/startup.scd` | Boot SuperCollider server + load SynthDef files |
 | `sc/envThemes.scd` | 13 environment theme SynthDefs |
 | `sc/attributes.scd` | 38 audio attribute SynthDefs |
+| `sc/voice.scd` | Storyteller voice relay (ALSA loopback → output bus) |
+| `sc/check_syntax_helper.scd` | Syntax-only helper — compiles each .scd via the interpreter with no server boot |
+| `sc/test_all.scd` | **Hardware integration test** — requires live scsynth + audio; run on the Pi only |
+
+### Pre-deployment syntax check
+
+Run before pushing to the Pi to catch parse errors without needing an audio server:
+
+```bash
+bash scripts/check_sc_syntax.sh
+```
+
+Registered as the `sc-syntax` validation step. Exits 0 with an advisory if `sclang` is not installed (graceful on machines without SuperCollider). Exits 1 on any parse error when `sclang` is available.
 
 ### REST API summary
 
