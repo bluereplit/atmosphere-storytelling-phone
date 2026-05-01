@@ -107,6 +107,16 @@ class TransitionManager:
     def set_attribute(self, audio_name: str, enabled: bool) -> None:
         self.active_renderer.set_attribute(audio_name, enabled)
 
+    def set_intensity(self, intensity: float) -> None:
+        self._current.set_intensity(intensity)
+        if self._next is not None:
+            self._next.set_intensity(intensity)
+
+    def set_theme(self, theme: str) -> None:
+        self._current.set_theme(theme)
+        if self._next is not None:
+            self._next.set_theme(theme)
+
 
 # ─────────────────────────────────────────────────────────────
 #  Status overlay
@@ -213,6 +223,8 @@ class AtmosphereApp:
         self._standby = StandbyScreen()
         self._overlay = StatusOverlay()
         self._current_phase = "daytime"
+        self._environment_theme = "forest"
+        self._intensity = 1.0
         self._running = False
         # Smooth standby transition: 0.0 = fully in scene, 1.0 = fully in standby
         self._standby_alpha = 0.0
@@ -261,8 +273,10 @@ class AtmosphereApp:
         pygame.display.set_caption("Atmosphere Display")
         clock = pygame.time.Clock()
 
-        # Initial renderer
+        # Initial renderer — apply default theme/intensity before first state event
         renderer = make_renderer(self._current_phase)
+        renderer.set_theme(self._environment_theme)
+        renderer.set_intensity(self._intensity)
         self._transition = TransitionManager(renderer)
         self._overlay.show(self._current_phase)
 
@@ -331,17 +345,29 @@ class AtmosphereApp:
         msg_type = msg.get("type")
 
         if msg_type == "state":
-            # NOTE: The visual renderer tracks `currentPhase` (the time-of-day scene:
-            # daytime / evening / night / dawn), NOT `environmentTheme` (the 13 audio
-            # themes: forest, ocean, cave, …).  The visual scene corresponds to phase;
-            # environment theme is an audio-only concept in this version. The field is
-            # named `currentPhase` in both the backend WsStateEvent and this renderer.
             phase = msg.get("currentPhase", self._current_phase)
+            theme = msg.get("environmentTheme", self._environment_theme)
+            intensity = msg.get("intensity", self._intensity)
+
+            # Phase change → cross-fade to new renderer
             if phase != self._current_phase:
                 self._current_phase = phase
                 new_renderer = make_renderer(phase)
+                # Carry over current theme/intensity so visuals don't flash
+                new_renderer.set_theme(self._environment_theme)
+                new_renderer.set_intensity(self._intensity)
                 self._transition.transition_to(new_renderer)
                 self._overlay.show(phase.upper())
+
+            # Environment theme change → update colour tint on active renderer(s)
+            if theme != self._environment_theme:
+                self._environment_theme = theme
+                self._transition.set_theme(theme)
+
+            # Intensity change → update brightness overlay on active renderer(s)
+            if intensity != self._intensity:
+                self._intensity = intensity
+                self._transition.set_intensity(intensity)
 
             # Apply attribute states
             attrs = msg.get("attributes", {})

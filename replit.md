@@ -32,6 +32,9 @@ All sound is programmatically generated via SuperCollider SynthDefs. No file-bas
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
 - `pnpm --filter @workspace/api-server run dev` — run API server locally (build + start)
+- `pnpm run dev` — run API server + visual display together (headless dev mode)
+- `pnpm run dev:pi` — run API server + visual display together (Raspberry Pi KMS/DRM mode)
+- `pnpm run start:display` — run visual display only (headless)
 
 ## Artifact: API Server
 
@@ -91,7 +94,9 @@ All REST endpoints are mirrored as OSC messages. See `docs/OSC_API.md`.
 
 **Dir**: `artifacts/atmosphere-display/`  
 **Runtime**: Python 3.11 + pygame 2.6 (SDL2)  
-**Launch**: `start_display.sh` at workspace root (or `python3 artifacts/atmosphere-display/main.py`)
+**pnpm package**: `@workspace/display`  
+**Launch (display only)**: `pnpm run start:display` (headless) · `pnpm run start:display:x11` (X11) · `pnpm run start:display:kms` (Pi KMS/DRM) · `pnpm run start:display:fbcon` (Pi framebuffer)  
+**Launch (backend + display together)**: `pnpm run dev` (headless) · `pnpm run dev:pi` (Pi KMS/DRM) · `pnpm run dev:pi:x11` (Pi X11)
 
 ### Source files
 

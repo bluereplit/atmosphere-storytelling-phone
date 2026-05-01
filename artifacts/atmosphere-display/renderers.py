@@ -24,6 +24,31 @@ from layers import (
 TWO_PI = math.pi * 2
 
 
+# ─────────────────────────────────────────────────────────────
+#  Environment theme → colour tint
+# Each theme adds a subtle RGBA tint overlay on top of the phase
+# background so visual and audio environment stay in sync.
+# Alpha values are intentionally small (15–45) to keep the scene
+# readable across all phase backgrounds.
+# ─────────────────────────────────────────────────────────────
+
+THEME_TINTS: dict[str, tuple[int, int, int, int]] = {
+    "forest":     (20,  80,  20,  22),   # muted green canopy
+    "ocean":      (15,  55, 110,  28),   # deep blue-teal
+    "mountain":   (90,  95, 115,  18),   # cool slate-grey
+    "desert":     (130, 75,  15,  22),   # warm sand-orange
+    "city":       (70,  70,  95,  18),   # urban grey-blue
+    "mystical":   (80,  15, 130,  25),   # violet-purple
+    "medieval":   (90,  55,  15,  20),   # amber torchlight
+    "underwater": ( 8,  55, 130,  40),   # deep aqua
+    "cosmic":     (15,   8,  65,  30),   # deep-space indigo
+    "cave":       ( 5,   5,  15,  50),   # almost black
+    "arctic":     (170, 210, 240, 22),   # cold blue-white
+    "jungle":     ( 8,  80,  20,  35),   # dense emerald
+    "tavern":     (90,  40,   8,  22),   # warm amber-brown
+}
+
+
 def _draw_gradient(surface: pygame.Surface,
                    colors: list[tuple[tuple, float]]) -> None:
     """
@@ -94,6 +119,8 @@ class BaseRenderer:
         self._layers: dict[str, object] = {}
         self._bg: pygame.Surface | None = None
         self._time = 0.0
+        self._intensity: float = 1.0    # 0.0–1.0 from backend
+        self._theme: str = "forest"     # current environment theme
 
     def _ensure_bg(self, w: int, h: int) -> pygame.Surface:
         if self._bg is None or self._bg.get_size() != (w, h):
@@ -116,6 +143,18 @@ class BaseRenderer:
         self._draw_animated(surface, w, h)
         for layer in self._layers.values():
             layer.draw(surface)
+        # Apply environment-theme colour tint
+        tint = THEME_TINTS.get(self._theme)
+        if tint is not None:
+            tint_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            tint_surf.fill(tint)
+            surface.blit(tint_surf, (0, 0))
+        # Apply intensity darkening: at intensity=0 → max ~70% darkness overlay
+        dim_alpha = int((1.0 - max(0.0, min(1.0, self._intensity))) * 180)
+        if dim_alpha > 2:
+            dim_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            dim_surf.fill((0, 0, 0, dim_alpha))
+            surface.blit(dim_surf, (0, 0))
 
     def _draw_animated(self, surface: pygame.Surface, w: int, h: int) -> None:
         pass  # subclasses add animated elements on top of bg
@@ -124,6 +163,12 @@ class BaseRenderer:
         layer_name = self.ATTRIBUTE_MAP.get(audio_name)
         if layer_name and layer_name in self._layers:
             self._layers[layer_name].enabled = enabled
+
+    def set_intensity(self, intensity: float) -> None:
+        self._intensity = max(0.0, min(1.0, intensity))
+
+    def set_theme(self, theme: str) -> None:
+        self._theme = theme
 
 
 # ─────────────────────────────────────────────────────────────

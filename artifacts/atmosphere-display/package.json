@@ -1,0 +1,12 @@
+{
+  "name": "@workspace/display",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "python3 main.py --ws-port 8080",
+    "start:headless": "SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy python3 main.py --no-fullscreen --ws-port 8080",
+    "start:kms": "SDL_VIDEODRIVER=kmsdrm python3 main.py --ws-port 8080",
+    "start:fbcon": "SDL_VIDEODRIVER=fbcon python3 main.py --ws-port 8080",
+    "start:x11": "DISPLAY=:0 python3 main.py --ws-port 8080"
+  }
+}
