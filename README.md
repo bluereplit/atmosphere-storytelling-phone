@@ -65,6 +65,26 @@ To find the Pi's IP address: `hostname -I`
 
 ---
 
+## Updating
+
+When a new version is available, run the update script from the repo root on the Pi:
+
+```bash
+cd atmosphere
+bash update.sh
+```
+
+The script will:
+- Pull the latest code from the configured git remote
+- Print a summary of commits and files that changed
+- Run `pnpm install --frozen-lockfile` to sync dependencies
+- Rebuild the API server
+- Restart the `atmosphere-backend` and `atmosphere-display` systemd services
+
+No manual steps are needed. The script restarts both services after every successful update. If a service was not running before the update it will be started; if the systemd unit files are not present (i.e. `install.sh` has never been run) the script will warn and skip the restart step.
+
+---
+
 ## Manual Install
 
 Use this section if you want to understand each step or prefer not to run the automated script.
@@ -331,6 +351,7 @@ atmosphere/
 ├── lib/                     Shared TypeScript libraries
 ├── start_display.sh         Display launch script (video driver selection)
 ├── install.sh               Automated Raspberry Pi install script
+├── update.sh                Pull new versions and restart services on a Pi
 ├── requirements.txt         Python dependencies
 ├── AUDIO_SETUP.md           SuperCollider and audio configuration guide
 └── OSC_API.md               OSC and REST API reference
