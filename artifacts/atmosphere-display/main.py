@@ -279,6 +279,34 @@ def _log_startup_perf(w: int, h: int) -> None:
     )
 
 
+def _log_phase_render_perf(w: int, h: int) -> None:
+    """
+    Instantiate every phase renderer, call draw() once on a temporary surface
+    at the actual screen resolution, and log the elapsed time in ms.
+
+    This runs once at startup (before the main loop) so that slow layers
+    (e.g. aurora, treeline, mist) are caught early — particularly useful on
+    Pi 3 where a single frame budget is ~16 ms at 60 fps.
+    """
+    import pygame
+    from renderers import RENDERERS
+
+    surf = pygame.Surface((w, h))
+
+    for phase_name, renderer_cls in RENDERERS.items():
+        renderer = renderer_cls()
+        # Advance by zero seconds so layers initialise their internal state
+        # without advancing any animation, then time a single full draw().
+        renderer.update(0.0, w, h)
+        t0 = time.monotonic()
+        renderer.draw(surf)
+        elapsed_ms = (time.monotonic() - t0) * 1000.0
+        log.info(
+            "PERF  phase render   %-8s  %dx%d  %.2f ms",
+            phase_name, w, h, elapsed_ms,
+        )
+
+
 # ─────────────────────────────────────────────────────────────
 #  App
 # ─────────────────────────────────────────────────────────────
@@ -348,6 +376,7 @@ class AtmosphereApp:
         clock = pygame.time.Clock()
 
         _log_startup_perf(w, h)
+        _log_phase_render_perf(w, h)
 
         # Initial renderer — apply default theme/intensity before first state event
         renderer = make_renderer(self._current_phase)
