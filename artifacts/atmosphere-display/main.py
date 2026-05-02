@@ -166,10 +166,38 @@ class StatusOverlay:
         lines.append(f"PHASE   {self._phase.upper() if self._phase else '—'}")
         lines.append(f"THEME   {self._theme if self._theme else '—'}")
         if self._active_attrs:
-            sounds = ", ".join(self._active_attrs)
+            # Wrap long sounds lists at ~40 chars per line
+            prefix = "SOUNDS  "
+            indent = " " * len(prefix)
+            char_limit = 40
+            sound_lines: list[str] = []
+            current = ""
+            for attr in self._active_attrs:
+                # Hard-wrap a single token that is itself over the limit
+                if len(attr) > char_limit:
+                    if current:
+                        sound_lines.append(current)
+                        current = ""
+                    sound_lines.append(attr[:char_limit])
+                    attr = attr[char_limit:]
+                    while len(attr) > char_limit:
+                        sound_lines.append(attr[:char_limit])
+                        attr = attr[char_limit:]
+                    current = attr if attr else ""
+                    continue
+                item = attr if not current else ", " + attr
+                if current and len(current) + len(item) > char_limit:
+                    sound_lines.append(current)
+                    current = attr
+                else:
+                    current += item
+            if current:
+                sound_lines.append(current)
+            lines.append(prefix + sound_lines[0])
+            for cont in sound_lines[1:]:
+                lines.append(indent + cont)
         else:
-            sounds = "—"
-        lines.append(f"SOUNDS  {sounds}")
+            lines.append("SOUNDS  —")
         return lines
 
     def draw(self, surface) -> None:
