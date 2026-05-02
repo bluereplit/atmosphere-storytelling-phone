@@ -17,12 +17,57 @@
  */
 
 import { WebSocketServer, WebSocket } from "ws";
-import { spawn, type ChildProcess } from "child_process";
+import { spawn, execSync, type ChildProcess } from "child_process";
 import type { Server } from "http";
 import { logger } from "./logger.js";
 
 const LOOPBACK_DEVICE = process.env["VOICE_LOOPBACK_DEVICE"] ?? "hw:Loopback,0";
 const SAMPLE_RATE = 44100;
+
+// ---------------------------------------------------------------------------
+// Loopback pre-flight check
+// ---------------------------------------------------------------------------
+
+/**
+ * Verify that the ALSA loopback device is available before accepting a voice
+ * WebSocket connection. Returns { available: true } when ready, or
+ * { available: false, reason: "<human-readable message>" } when not.
+ */
+function checkLoopbackAvailable(): { available: boolean; reason: string } {
+  try {
+    const lsmodOut = execSync("lsmod", { timeout: 3000 }).toString();
+    const moduleLoaded = lsmodOut.split("\n").some((line) => /^snd_aloop\b/.test(line));
+    if (!moduleLoaded) {
+      return {
+        available: false,
+        reason: "ALSA loopback not available — run: sudo systemctl start alsa-loopback",
+      };
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      available: false,
+      reason: `ALSA loopback check failed: ${msg}`,
+    };
+  }
+
+  try {
+    const cardsOut = execSync("cat /proc/asound/cards", { timeout: 2000 }).toString();
+    if (!/Loopback/i.test(cardsOut)) {
+      return {
+        available: false,
+        reason: "ALSA Loopback device not found — run: sudo systemctl start alsa-loopback",
+      };
+    }
+  } catch {
+    return {
+      available: false,
+      reason: "Could not read /proc/asound/cards — run: sudo systemctl start alsa-loopback",
+    };
+  }
+
+  return { available: true, reason: "" };
+}
 
 /**
  * Maximum number of PCM chunks held in the ring buffer while aplay stdin
@@ -220,6 +265,21 @@ export function initVoiceWebSocket(server: Server): void {
   voiceWss = new WebSocketServer({ server, path: "/ws/voice" });
 
   voiceWss.on("connection", (ws, req) => {
+    // Pre-flight: verify the ALSA loopback device is ready before accepting audio.
+    const loopback = checkLoopbackAvailable();
+    if (!loopback.available) {
+      logger.warn(
+        { ip: req.socket.remoteAddress, reason: loopback.reason },
+        "Rejecting voice WebSocket — ALSA loopback not ready"
+      );
+      // WS close-frame reason is limited to 123 bytes (UTF-8) per RFC 6455.
+      const closeReason = Buffer.byteLength(loopback.reason, "utf8") <= 123
+        ? loopback.reason
+        : loopback.reason.slice(0, 120) + "…";
+      ws.close(4001, closeReason);
+      return;
+    }
+
     clientCount++;
     logger.info({ ip: req.socket.remoteAddress, clientCount }, "Voice WebSocket client connected");
 

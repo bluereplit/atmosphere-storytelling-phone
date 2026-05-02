@@ -171,9 +171,14 @@ export function StorytellerVoice() {
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => setWsConnected(true);
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setWsConnected(false);
-        if (sessionRef.current) {
+        if (event.code === 4001) {
+          const reason = event.reason || "ALSA loopback not available — run: sudo systemctl start alsa-loopback";
+          setError(reason);
+          stopSession();
+          setMicEnabled(false);
+        } else if (sessionRef.current) {
           setError("WebSocket disconnected unexpectedly");
           stopSession();
           setMicEnabled(false);
@@ -342,6 +347,8 @@ export function StorytellerVoice() {
                 size="sm"
                 className={`gap-2 ${micEnabled ? "bg-primary text-primary-foreground" : ""}`}
                 onClick={() => handleMicToggle(!micEnabled)}
+                disabled={loopbackChecked && loopbackAvailable === false}
+                title={loopbackChecked && loopbackAvailable === false ? "ALSA loopback not available" : undefined}
               >
                 {micEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
                 {micEnabled ? "Mic On" : "Enable Mic"}
