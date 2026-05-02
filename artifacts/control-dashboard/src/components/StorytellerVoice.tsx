@@ -5,7 +5,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Mic, MicOff, Volume2, VolumeX, Waves, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { Mic, MicOff, Volume2, VolumeX, Waves, ChevronDown, ChevronRight, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -25,13 +25,18 @@ async function postVoiceParams(gain: number, reverb: number): Promise<void> {
   });
 }
 
-async function fetchLoopbackStatus(): Promise<boolean | null> {
+interface LoopbackStatus {
+  available: boolean;
+  moduleLoaded: boolean;
+  deviceAccessible: boolean;
+  error: string | null;
+}
+
+async function fetchLoopbackStatus(): Promise<LoopbackStatus | null> {
   try {
     const res = await fetch(`${BASE}/api/voice/loopback-status`);
     if (!res.ok) return null;
-    const data = (await res.json()) as { available: boolean; error: string | null };
-    if (data.error != null) return null;
-    return data.available === true;
+    return (await res.json()) as LoopbackStatus;
   } catch {
     return null;
   }
@@ -58,7 +63,7 @@ export function StorytellerVoice() {
   const [level, setLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
-  const [loopbackAvailable, setLoopbackAvailable] = useState<boolean | null>(null);
+  const [loopbackStatus, setLoopbackStatus] = useState<LoopbackStatus | null>(null);
 
   const sessionRef = useRef<MicSession | null>(null);
   const gainRef = useRef(gain);
@@ -76,7 +81,7 @@ export function StorytellerVoice() {
   }, [serverVoice.gain, serverVoice.reverb]);
 
   useEffect(() => {
-    fetchLoopbackStatus().then(setLoopbackAvailable);
+    fetchLoopbackStatus().then(setLoopbackStatus);
   }, []);
 
   const sendParams = useCallback((g: number, r: number) => {
@@ -193,6 +198,18 @@ export function StorytellerVoice() {
   const levelBars = 12;
   const activeBars = Math.round(level * levelBars);
 
+  const loopbackAvailable = loopbackStatus?.available ?? null;
+  const loopbackChecked = loopbackStatus !== null;
+
+  const loopbackLabel = (() => {
+    if (!loopbackChecked) return "Checking…";
+    if (loopbackStatus?.error) return "Check failed";
+    if (loopbackStatus?.available) return "Ready";
+    if (!loopbackStatus?.moduleLoaded) return "Module not loaded";
+    if (!loopbackStatus?.deviceAccessible) return "Device not found";
+    return "Unavailable";
+  })();
+
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <Card className="border-border/50 bg-card/50">
@@ -202,8 +219,8 @@ export function StorytellerVoice() {
               {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
               <Waves className="w-3.5 h-3.5" />
               Storyteller Voice
-              {loopbackAvailable === false && (
-                <span className="ml-auto flex items-center gap-1 text-xs text-yellow-400 font-normal normal-case">
+              {loopbackChecked && loopbackAvailable === false && (
+                <span className="ml-auto flex items-center gap-1 text-xs text-red-400 font-normal normal-case">
                   <AlertTriangle className="w-3 h-3" />
                   No loopback
                 </span>
@@ -220,21 +237,50 @@ export function StorytellerVoice() {
 
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0">
-            {loopbackAvailable === false && (
-              <div className="flex gap-2 items-start text-xs bg-yellow-500/10 border border-yellow-500/40 rounded p-2.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-yellow-400 mt-0.5 shrink-0" />
-                <span className="text-yellow-200/90 leading-relaxed">
-                  ALSA loopback device not found. Voice audio will be silently discarded.{" "}
-                  <a
-                    href={`${BASE}/api/docs/AUDIO_SETUP.md#6-storyteller-voice--alsa-loopback-setup`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline underline-offset-2 text-yellow-300 hover:text-yellow-100 transition-colors"
-                  >
-                    See AUDIO_SETUP.md §6
-                  </a>{" "}
-                  to enable the loopback module.
-                </span>
+            <div className="flex items-center gap-2 text-xs font-mono">
+              {!loopbackChecked ? (
+                <span className="w-3.5 h-3.5 rounded-full bg-muted/40 animate-pulse shrink-0" />
+              ) : loopbackAvailable ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
+              ) : (
+                <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+              )}
+              <span className={loopbackAvailable ? "text-green-300" : loopbackChecked ? "text-red-300" : "text-muted-foreground"}>
+                ALSA loopback
+              </span>
+              <span className="text-muted-foreground/60">&mdash;</span>
+              <span className={loopbackAvailable ? "text-muted-foreground" : loopbackChecked ? "text-red-300/80" : "text-muted-foreground/60"}>
+                {loopbackLabel}
+              </span>
+            </div>
+
+            {loopbackChecked && loopbackAvailable === false && (
+              <div className="flex gap-2 items-start text-xs bg-red-500/10 border border-red-500/40 rounded p-2.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                {loopbackStatus?.error ? (
+                  <span className="text-red-200/90 leading-relaxed">
+                    Could not check ALSA loopback status ({loopbackStatus.error.split("\n")[0]}). Run the check manually:{" "}
+                    <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">
+                      lsmod | grep snd_aloop
+                    </code>
+                  </span>
+                ) : !loopbackStatus?.moduleLoaded ? (
+                  <span className="text-red-200/90 leading-relaxed">
+                    The <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">snd_aloop</code> module is not loaded. Voice audio will be silently discarded.{" "}
+                    Run:{" "}
+                    <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">
+                      sudo systemctl start alsa-loopback
+                    </code>
+                  </span>
+                ) : (
+                  <span className="text-red-200/90 leading-relaxed">
+                    Module loaded but ALSA Loopback device not found in <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">/proc/asound/cards</code>. Voice audio will be silently discarded.{" "}
+                    Run:{" "}
+                    <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">
+                      sudo systemctl start alsa-loopback
+                    </code>
+                  </span>
+                )}
               </div>
             )}
 

@@ -5,15 +5,28 @@ import { startVoice, stopVoice, setVoiceParams, getVoiceState } from "../lib/sta
 const router: IRouter = Router();
 
 router.get("/voice/loopback-status", (_req: Request, res: Response) => {
-  let available = false;
+  let moduleLoaded = false;
+  let deviceAccessible = false;
   let error: string | null = null;
+
   try {
-    const output = execSync("lsmod", { timeout: 3000 }).toString();
-    available = output.split("\n").some((line) => /^snd_aloop\b/.test(line));
+    const lsmodOut = execSync("lsmod", { timeout: 3000 }).toString();
+    moduleLoaded = lsmodOut.split("\n").some((line) => /^snd_aloop\b/.test(line));
   } catch (err) {
     error = err instanceof Error ? err.message : "lsmod check failed";
   }
-  res.json({ available, error });
+
+  if (moduleLoaded) {
+    try {
+      const cardsOut = execSync("cat /proc/asound/cards", { timeout: 2000 }).toString();
+      deviceAccessible = /Loopback/i.test(cardsOut);
+    } catch {
+      deviceAccessible = false;
+    }
+  }
+
+  const available = moduleLoaded && deviceAccessible;
+  res.json({ available, moduleLoaded, deviceAccessible, error });
 });
 
 router.post("/voice/start", (_req: Request, res: Response) => {
