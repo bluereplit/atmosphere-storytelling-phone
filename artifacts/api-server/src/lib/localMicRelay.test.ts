@@ -1,14 +1,118 @@
 /**
- * Tests for localMicRelay — focusing on the pure parseArecordList() parser
- * which is the most likely source of regressions and covers all the real-world
- * arecord -l output formats operators will encounter.
+ * Tests for localMicRelay — covering the pure parseArecordList() parser and
+ * the process lifecycle (start / stop / isRunning / getStatus) using a mocked
+ * child_process, following the same pattern as voiceRelay.test.ts.
  */
 
-import { describe, expect, it } from "vitest";
-import { parseArecordList } from "./localMicRelay.js";
+import { EventEmitter } from "events";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
-// parseArecordList
+// Fake process building blocks
+// ---------------------------------------------------------------------------
+
+/** Minimal readable stream – only needs .pipe() for the stdout→stdin wiring. */
+class FakeReadable extends EventEmitter {
+  piped: FakeWritable | null = null;
+
+  pipe(dest: FakeWritable): FakeWritable {
+    this.piped = dest;
+    return dest;
+  }
+}
+
+/** Minimal writable stream. */
+class FakeWritable extends EventEmitter {
+  ended = false;
+  end() {
+    this.ended = true;
+  }
+}
+
+/** A fake ChildProcess returned by the mocked spawn(). */
+class FakeProcess extends EventEmitter {
+  stdout: FakeReadable | null;
+  stdin: FakeWritable | null;
+  stderr: EventEmitter;
+  killed = false;
+  killSignal: string | undefined;
+
+  constructor(opts: { hasStdout?: boolean; hasStdin?: boolean } = {}) {
+    super();
+    this.stdout = opts.hasStdout ? new FakeReadable() : null;
+    this.stdin = opts.hasStdin ? new FakeWritable() : null;
+    this.stderr = new EventEmitter();
+  }
+
+  kill(sig?: string): boolean {
+    this.killed = true;
+    this.killSignal = sig;
+    return true;
+  }
+}
+
+// Tracks the two processes created per start() call.
+let fakeArecord: FakeProcess;
+let fakeAplay: FakeProcess;
+let spawnCallCount = 0;
+
+// ---------------------------------------------------------------------------
+// Mock child_process BEFORE importing the module under test.
+// ---------------------------------------------------------------------------
+vi.mock("child_process", () => ({
+  spawn: vi.fn((..._args: unknown[]) => {
+    spawnCallCount++;
+    if (spawnCallCount % 2 === 1) {
+      // Odd calls → arecord (needs stdout)
+      fakeArecord = new FakeProcess({ hasStdout: true });
+      return fakeArecord;
+    } else {
+      // Even calls → aplay (needs stdin)
+      fakeAplay = new FakeProcess({ hasStdin: true });
+      return fakeAplay;
+    }
+  }),
+  execSync: vi.fn(() => Buffer.from("")),
+}));
+
+vi.mock("./logger.js", () => ({
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
+// Import AFTER mocks are registered.
+import {
+  parseArecordList,
+  start,
+  stop,
+  isRunning,
+  getStatus,
+} from "./localMicRelay.js";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function tick(): Promise<void> {
+  return new Promise((r) => setTimeout(r, 0));
+}
+
+/** Tear down any running relay so each lifecycle test starts from a stopped state. */
+async function ensureStopped(): Promise<void> {
+  if (isRunning()) {
+    stop();
+    fakeArecord?.emit("exit", 0, null);
+    fakeAplay?.emit("exit", 0, null);
+    await tick();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// parseArecordList — pure-function tests
 // ---------------------------------------------------------------------------
 
 describe("parseArecordList", () => {
@@ -81,7 +185,6 @@ arecord: device_list:272: no soundcards found...`;
   });
 
   it("trims whitespace from names", () => {
-    // Some implementations may have trailing spaces in names
     const output = `card 0: PCH  [HDA Intel PCH ], device 0: Analog  [ALC887-VD Analog ]`;
     const devices = parseArecordList(output);
     expect(devices).toHaveLength(1);
@@ -94,5 +197,214 @@ arecord: device_list:272: no soundcards found...`;
     expect(devices).toHaveLength(1);
     expect(devices[0]!.id).toBe("hw:15,7");
     expect(devices[0]!.name).toBe("HDA Intel HDMI — HDMI 6");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Process lifecycle — start / stop / isRunning / getStatus
+// ---------------------------------------------------------------------------
+
+describe("localMicRelay lifecycle", () => {
+  beforeEach(async () => {
+    spawnCallCount = 0;
+    vi.clearAllMocks();
+    await ensureStopped();
+  });
+
+  afterEach(async () => {
+    await ensureStopped();
+  });
+
+  // --- initial state ---
+
+  it("isRunning() returns false before any start()", () => {
+    expect(isRunning()).toBe(false);
+  });
+
+  it("getStatus() returns idle state before any start()", () => {
+    expect(getStatus()).toEqual({ running: false, device: null, error: null });
+  });
+
+  // --- start() happy path ---
+
+  it("start() spawns arecord and aplay", async () => {
+    const { spawn } = await import("child_process");
+    start("hw:2,0");
+    await tick();
+
+    expect(spawn).toHaveBeenCalledTimes(2);
+    const calls = (spawn as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls[0]![0]).toBe("arecord");
+    expect(calls[0]![1]).toContain("hw:2,0");
+    expect(calls[1]![0]).toBe("aplay");
+  });
+
+  it("start() sets isRunning() to true", async () => {
+    start("hw:2,0");
+    await tick();
+    expect(isRunning()).toBe(true);
+  });
+
+  it("start() pipes arecord stdout to aplay stdin", async () => {
+    start("hw:2,0");
+    await tick();
+    expect(fakeArecord.stdout!.piped).toBe(fakeAplay.stdin);
+  });
+
+  it("getStatus() reports running=true with the active device", async () => {
+    start("hw:2,0");
+    await tick();
+    expect(getStatus()).toEqual({ running: true, device: "hw:2,0", error: null });
+  });
+
+  // --- start() idempotency ---
+
+  it("start() is a no-op when called again with the same device", async () => {
+    const { spawn } = await import("child_process");
+    start("hw:2,0");
+    await tick();
+    const callsBefore = (spawn as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    start("hw:2,0");
+    await tick();
+
+    expect((spawn as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBefore);
+    expect(isRunning()).toBe(true);
+  });
+
+  it("start() stops existing capture and restarts for a different device", async () => {
+    const { spawn } = await import("child_process");
+    start("hw:0,0");
+    await tick();
+    const firstCallCount = (spawn as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    // Bring processes down so module resets its internal refs.
+    fakeArecord.emit("exit", 0, null);
+    fakeAplay.emit("exit", 0, null);
+    await tick();
+
+    start("hw:1,0");
+    await tick();
+
+    expect((spawn as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(firstCallCount);
+    expect(getStatus().device).toBe("hw:1,0");
+  });
+
+  // --- stop() ---
+
+  it("stop() sets isRunning() to false", async () => {
+    start("hw:2,0");
+    await tick();
+    expect(isRunning()).toBe(true);
+
+    stop();
+    await tick();
+
+    expect(isRunning()).toBe(false);
+  });
+
+  it("stop() sends SIGTERM to both child processes", async () => {
+    start("hw:2,0");
+    await tick();
+
+    stop();
+    await tick();
+
+    expect(fakeArecord.killed).toBe(true);
+    expect(fakeAplay.killed).toBe(true);
+  });
+
+  it("stop() is safe to call when nothing is running", () => {
+    expect(() => stop()).not.toThrow();
+  });
+
+  it("getStatus() returns running=false after stop + exit", async () => {
+    start("hw:2,0");
+    await tick();
+
+    stop();
+    fakeArecord.emit("exit", 0, null);
+    fakeAplay.emit("exit", 0, null);
+    await tick();
+
+    expect(getStatus().running).toBe(false);
+  });
+
+  // --- error events ---
+
+  it("arecord ENOENT error stops the relay and sets an error message", async () => {
+    start("hw:2,0");
+    await tick();
+
+    const err = Object.assign(new Error("spawn arecord ENOENT"), { code: "ENOENT" });
+    fakeArecord.emit("error", err);
+    await tick();
+
+    const s = getStatus();
+    expect(s.running).toBe(false);
+    expect(s.error).toMatch(/arecord not found/);
+  });
+
+  it("arecord generic error stops the relay and sets an error message", async () => {
+    start("hw:2,0");
+    await tick();
+
+    fakeArecord.emit("error", new Error("some unexpected error"));
+    await tick();
+
+    const s = getStatus();
+    expect(s.running).toBe(false);
+    expect(s.error).toMatch(/arecord error/);
+  });
+
+  it("aplay ENOENT error stops the relay and sets an error message", async () => {
+    start("hw:2,0");
+    await tick();
+
+    const err = Object.assign(new Error("spawn aplay ENOENT"), { code: "ENOENT" });
+    fakeAplay.emit("error", err);
+    await tick();
+
+    const s = getStatus();
+    expect(s.running).toBe(false);
+    expect(s.error).toMatch(/aplay not found/);
+  });
+
+  it("aplay generic error stops the relay and sets an error message", async () => {
+    start("hw:2,0");
+    await tick();
+
+    fakeAplay.emit("error", new Error("broken pipe"));
+    await tick();
+
+    const s = getStatus();
+    expect(s.running).toBe(false);
+    expect(s.error).toMatch(/aplay error/);
+  });
+
+  it("unexpected arecord exit records a lastError message", async () => {
+    start("hw:2,0");
+    await tick();
+
+    // Exit while the relay is still "active" triggers the error path.
+    fakeArecord.emit("exit", 1, null);
+    await tick();
+
+    const s = getStatus();
+    expect(s.running).toBe(false);
+    expect(s.error).toMatch(/Capture stopped unexpectedly/);
+  });
+
+  it("getStatus() preserves the device name after an error", async () => {
+    start("hw:3,0");
+    await tick();
+
+    const err = Object.assign(new Error("no such file"), { code: "ENOENT" });
+    fakeArecord.emit("error", err);
+    await tick();
+
+    const s = getStatus();
+    expect(s.device).toBe("hw:3,0");
+    expect(s.error).not.toBeNull();
   });
 });
