@@ -236,5 +236,10 @@
     "war_drums": 80,
     "blacksmith": 72
   },
-  "muted": false
+  "muted": false,
+  "voice": {
+    "gain": 0.8,
+    "reverb": 0.2,
+    "active": false
+  }
 }

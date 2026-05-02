@@ -5,7 +5,11 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Mic, MicOff, Volume2, VolumeX, Waves, ChevronDown, ChevronRight, AlertTriangle, CheckCircle2, XCircle, Radio, Copy, Check } from "lucide-react";
+import {
+  Mic, MicOff, Volume2, VolumeX, Waves, ChevronDown, ChevronRight,
+  AlertTriangle, CheckCircle2, XCircle, Radio, Copy, Check,
+  Bluetooth, MonitorSpeaker, RefreshCw,
+} from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -66,6 +70,69 @@ async function resetRelayStats(): Promise<void> {
   }
 }
 
+interface AlsaDevice {
+  id: string;
+  name: string;
+}
+
+async function fetchInputDevices(): Promise<AlsaDevice[]> {
+  try {
+    const res = await fetch(`${BASE}/api/voice/input-devices`);
+    if (!res.ok) return [];
+    const data = await res.json() as { devices: AlsaDevice[] };
+    return data.devices;
+  } catch {
+    return [];
+  }
+}
+
+type VoiceSourceMode = "browser" | "local";
+
+interface VoiceSource {
+  mode: VoiceSourceMode;
+  device: string | null;
+}
+
+interface LocalCaptureStatus {
+  running: boolean;
+  device: string | null;
+  error: string | null;
+}
+
+async function fetchVoiceSource(): Promise<{ source: VoiceSource; captureStatus: LocalCaptureStatus } | null> {
+  try {
+    const res = await fetch(`${BASE}/api/voice/source`);
+    if (!res.ok) return null;
+    return (await res.json()) as { source: VoiceSource; captureStatus: LocalCaptureStatus };
+  } catch {
+    return null;
+  }
+}
+
+async function postVoiceSource(mode: VoiceSourceMode, device?: string): Promise<{ source: VoiceSource; captureStatus: LocalCaptureStatus } | null> {
+  try {
+    const res = await fetch(`${BASE}/api/voice/source`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode, device: device ?? null }),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as { source: VoiceSource; captureStatus: LocalCaptureStatus };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchCaptureStatus(): Promise<LocalCaptureStatus | null> {
+  try {
+    const res = await fetch(`${BASE}/api/voice/capture-status`);
+    if (!res.ok) return null;
+    return (await res.json()) as LocalCaptureStatus;
+  } catch {
+    return null;
+  }
+}
+
 interface MicSession {
   audioCtx: AudioContext;
   workletNode: AudioWorkletNode;
@@ -120,15 +187,24 @@ export function StorytellerVoice() {
   const [loopbackStatus, setLoopbackStatus] = useState<LoopbackStatus | null>(null);
   const [relayStats, setRelayStats] = useState<RelayStats | null>(null);
 
+  // Voice source state
+  const [sourceMode, setSourceMode] = useState<VoiceSourceMode>("browser");
+  const [inputDevices, setInputDevices] = useState<AlsaDevice[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
+  const [captureStatus, setCaptureStatus] = useState<LocalCaptureStatus | null>(null);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+
   const sessionRef = useRef<MicSession | null>(null);
   const gainRef = useRef(gain);
   const reverbRef = useRef(reverb);
   const mutedRef = useRef(muted);
+  const micEnabledRef = useRef(micEnabled);
   const paramDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   gainRef.current = gain;
   reverbRef.current = reverb;
   mutedRef.current = muted;
+  micEnabledRef.current = micEnabled;
 
   useEffect(() => {
     setGain(serverVoice.gain);
@@ -138,6 +214,62 @@ export function StorytellerVoice() {
   useEffect(() => {
     fetchLoopbackStatus().then(setLoopbackStatus);
   }, []);
+
+  // Load persisted voice source on mount
+  useEffect(() => {
+    fetchVoiceSource().then((data) => {
+      if (!data) return;
+      setSourceMode(data.source.mode);
+      if (data.source.device) setSelectedDevice(data.source.device);
+      setCaptureStatus(data.captureStatus);
+    });
+  }, []);
+
+  // Load devices when switching to local mode
+  const loadInputDevices = useCallback(async () => {
+    setDevicesLoading(true);
+    const devices = await fetchInputDevices();
+    setInputDevices(devices);
+    setDevicesLoading(false);
+    if (devices.length > 0 && !selectedDevice) {
+      setSelectedDevice(devices[0]!.id);
+    }
+  }, [selectedDevice]);
+
+  useEffect(() => {
+    if (sourceMode === "local" && open) {
+      loadInputDevices();
+    }
+  }, [sourceMode, open, loadInputDevices]);
+
+  // Poll capture status when in local mode and panel is open.
+  // If the server reports capture stopped (e.g. mic disconnected) while the
+  // UI thinks it is enabled, sync micEnabled to false so the button label
+  // and state are consistent with the actual server state.
+  useEffect(() => {
+    if (!open || sourceMode !== "local") {
+      setCaptureStatus(null);
+      return;
+    }
+    let cancelled = false;
+    const poll = () => {
+      fetchCaptureStatus().then((s) => {
+        if (cancelled) return;
+        setCaptureStatus(s);
+        if (s && !s.running && micEnabledRef.current) {
+          // Server-side capture stopped unexpectedly — sync UI
+          setMicEnabled(false);
+          postVoiceStop().catch(() => {});
+        }
+      });
+    };
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [open, sourceMode]);
 
   useEffect(() => {
     if (!open) {
@@ -269,6 +401,71 @@ export function StorytellerVoice() {
     sendParams(mutedRef.current ? 0 : gainRef.current, v);
   }, [sendParams]);
 
+  const handleSourceModeChange = useCallback(async (mode: VoiceSourceMode) => {
+    if (mode === sourceMode) return;
+
+    // Always disable the active input first — require explicit re-enable
+    // after switching so UI and transport are never out of sync.
+    if (micEnabled) {
+      if (sourceMode === "browser") {
+        await stopSession();
+      } else {
+        // local mode was active: stop server-side capture and voice synth
+        await postVoiceSource("browser");
+        await postVoiceStop().catch(() => {});
+      }
+      setMicEnabled(false);
+    }
+
+    setSourceMode(mode);
+    setError(null);
+    setCaptureStatus(null);
+
+    if (mode === "local") {
+      await loadInputDevices();
+      // Don't auto-start; let user pick device and explicitly enable
+    } else {
+      // Switching back to browser: ensure local capture is stopped
+      const result = await postVoiceSource("browser");
+      if (result) setCaptureStatus(result.captureStatus);
+    }
+  }, [sourceMode, micEnabled, stopSession, loadInputDevices]);
+
+  const handleLocalMicToggle = useCallback(async (checked: boolean) => {
+    if (!selectedDevice) return;
+    setError(null);
+
+    const result = await postVoiceSource(checked ? "local" : "browser", checked ? selectedDevice : undefined);
+    if (result) {
+      setCaptureStatus(result.captureStatus);
+      if (result.captureStatus.error) {
+        setError(`Capture error: ${result.captureStatus.error}`);
+      }
+    }
+
+    if (checked) {
+      await postVoiceStart();
+    } else {
+      await postVoiceStop();
+    }
+    setMicEnabled(checked);
+  }, [selectedDevice]);
+
+  const handleDeviceChange = useCallback(async (deviceId: string) => {
+    setSelectedDevice(deviceId);
+    setError(null);
+    // If currently capturing, restart with the new device
+    if (micEnabled && sourceMode === "local") {
+      const result = await postVoiceSource("local", deviceId);
+      if (result) {
+        setCaptureStatus(result.captureStatus);
+        if (result.captureStatus.error) {
+          setError(`Capture error: ${result.captureStatus.error}`);
+        }
+      }
+    }
+  }, [micEnabled, sourceMode]);
+
   useEffect(() => {
     return () => {
       stopSession();
@@ -291,6 +488,10 @@ export function StorytellerVoice() {
     return "Unavailable";
   })();
 
+  const localCapturing = captureStatus?.running === true;
+  const localCaptureError = captureStatus?.error ?? null;
+  const localDeviceName = captureStatus?.device ?? selectedDevice ?? null;
+
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <Card className="border-border/50 bg-card/50">
@@ -306,10 +507,22 @@ export function StorytellerVoice() {
                   No loopback
                 </span>
               )}
-              {micEnabled && wsConnected && loopbackAvailable !== false && (
+              {sourceMode === "local" && localCapturing && (
+                <span className="ml-auto flex items-center gap-1 text-xs text-blue-400 font-normal normal-case">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                  Capturing locally
+                </span>
+              )}
+              {sourceMode === "browser" && micEnabled && wsConnected && loopbackAvailable !== false && (
                 <span className="ml-auto flex items-center gap-1 text-xs text-green-400 font-normal normal-case">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                   Live
+                </span>
+              )}
+              {sourceMode === "local" && localCaptureError && (
+                <span className="ml-auto flex items-center gap-1 text-xs text-red-400 font-normal normal-case">
+                  <AlertTriangle className="w-3 h-3" />
+                  Capture lost
                 </span>
               )}
             </CardTitle>
@@ -318,164 +531,305 @@ export function StorytellerVoice() {
 
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0">
-            <div className="flex items-center gap-2 text-xs font-mono">
-              {!loopbackChecked ? (
-                <span className="w-3.5 h-3.5 rounded-full bg-muted/40 animate-pulse shrink-0" />
-              ) : loopbackAvailable ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
-              ) : (
-                <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-              )}
-              <span className={loopbackAvailable ? "text-green-300" : loopbackChecked ? "text-red-300" : "text-muted-foreground"}>
-                ALSA loopback
-              </span>
-              <span className="text-muted-foreground/60">&mdash;</span>
-              <span className={loopbackAvailable ? "text-muted-foreground" : loopbackChecked ? "text-red-300/80" : "text-muted-foreground/60"}>
-                {loopbackLabel}
-              </span>
+
+            {/* Source selector */}
+            <div className="flex items-center gap-1 p-0.5 bg-muted/20 rounded-md border border-border/30">
+              <button
+                type="button"
+                onClick={() => handleSourceModeChange("browser")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded text-xs font-mono transition-all ${
+                  sourceMode === "browser"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                }`}
+              >
+                <MonitorSpeaker className="w-3 h-3" />
+                Browser Mic
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSourceModeChange("local")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded text-xs font-mono transition-all ${
+                  sourceMode === "local"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                }`}
+              >
+                <Bluetooth className="w-3 h-3" />
+                Pi Bluetooth Mic
+              </button>
             </div>
 
-            {loopbackChecked && loopbackAvailable === false && (
-              <div className="text-xs bg-red-500/10 border border-red-500/40 rounded p-2.5 space-y-2">
-                <div className="flex gap-2 items-start">
-                  <AlertTriangle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
-                  {loopbackStatus?.error ? (
-                    <span className="text-red-200/90 leading-relaxed">
-                      Could not check ALSA loopback status ({loopbackStatus.error.split("\n")[0]}). Run the check manually:{" "}
-                      <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">
-                        lsmod | grep snd_aloop
-                      </code>
-                    </span>
-                  ) : !loopbackStatus?.moduleLoaded ? (
-                    <span className="text-red-200/90 leading-relaxed">
-                      The <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">snd_aloop</code> kernel module is not loaded. Voice audio will be silently discarded.
-                    </span>
+            {/* Browser mic mode */}
+            {sourceMode === "browser" && (
+              <>
+                <div className="flex items-center gap-2 text-xs font-mono">
+                  {!loopbackChecked ? (
+                    <span className="w-3.5 h-3.5 rounded-full bg-muted/40 animate-pulse shrink-0" />
+                  ) : loopbackAvailable ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
                   ) : (
-                    <span className="text-red-200/90 leading-relaxed">
-                      Module loaded but ALSA Loopback device not found in{" "}
-                      <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">/proc/asound/cards</code>. Voice audio will be silently discarded.
+                    <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                  )}
+                  <span className={loopbackAvailable ? "text-green-300" : loopbackChecked ? "text-red-300" : "text-muted-foreground"}>
+                    ALSA loopback
+                  </span>
+                  <span className="text-muted-foreground/60">&mdash;</span>
+                  <span className={loopbackAvailable ? "text-muted-foreground" : loopbackChecked ? "text-red-300/80" : "text-muted-foreground/60"}>
+                    {loopbackLabel}
+                  </span>
+                </div>
+
+                {loopbackChecked && loopbackAvailable === false && (
+                  <div className="text-xs bg-red-500/10 border border-red-500/40 rounded p-2.5 space-y-2">
+                    <div className="flex gap-2 items-start">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                      {loopbackStatus?.error ? (
+                        <span className="text-red-200/90 leading-relaxed">
+                          Could not check ALSA loopback status ({loopbackStatus.error.split("\n")[0]}). Run the check manually:{" "}
+                          <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">
+                            lsmod | grep snd_aloop
+                          </code>
+                        </span>
+                      ) : !loopbackStatus?.moduleLoaded ? (
+                        <span className="text-red-200/90 leading-relaxed">
+                          The <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">snd_aloop</code> kernel module is not loaded. Voice audio will be silently discarded.
+                        </span>
+                      ) : (
+                        <span className="text-red-200/90 leading-relaxed">
+                          Module loaded but ALSA Loopback device not found in{" "}
+                          <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">/proc/asound/cards</code>. Voice audio will be silently discarded.
+                        </span>
+                      )}
+                    </div>
+
+                    <Collapsible open={fixOpen} onOpenChange={setFixOpen}>
+                      <CollapsibleTrigger className="flex items-center gap-1 text-red-300/80 hover:text-red-200 transition-colors cursor-pointer select-none font-mono tracking-wide">
+                        {fixOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                        How to fix
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-2 space-y-2.5">
+                        <div className="space-y-1">
+                          <p className="text-red-300/70">Quick fix (current boot only):</p>
+                          <CopyCommand
+                            command="sudo modprobe snd_aloop"
+                            copiedCmd={copiedCmd}
+                            onCopy={setCopiedCmd}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-red-300/70">Persistent (survives reboot):</p>
+                          <CopyCommand
+                            command="sudo systemctl enable --now alsa-loopback"
+                            copiedCmd={copiedCmd}
+                            onCopy={setCopiedCmd}
+                          />
+                        </div>
+                        <p className="text-red-300/60 leading-relaxed pt-0.5">
+                          Full setup instructions:{" "}
+                          <a
+                            href="AUDIO_SETUP.md#6-storyteller-voice--alsa-loopback-setup"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline underline-offset-2 hover:text-red-200 transition-colors"
+                          >
+                            AUDIO_SETUP.md §6
+                          </a>
+                        </p>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="text-xs text-destructive bg-destructive/10 rounded p-2 border border-destructive/30">
+                    {error}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant={micEnabled ? "default" : "outline"}
+                    size="sm"
+                    className={`gap-2 ${micEnabled ? "bg-primary text-primary-foreground" : ""}`}
+                    onClick={() => handleMicToggle(!micEnabled)}
+                    disabled={loopbackChecked && loopbackAvailable === false}
+                    title={loopbackChecked && loopbackAvailable === false ? "ALSA loopback not available" : undefined}
+                  >
+                    {micEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+                    {micEnabled ? "Mic On" : "Enable Mic"}
+                  </Button>
+
+                  <div className="flex-1 flex items-center gap-0.5 h-5">
+                    {Array.from({ length: levelBars }).map((_, i) => {
+                      const isActive = i < activeBars;
+                      const isHigh = i >= levelBars * 0.75;
+                      const isMid = i >= levelBars * 0.5;
+                      return (
+                        <div
+                          key={i}
+                          className={`flex-1 rounded-sm transition-all duration-75 ${
+                            !micEnabled
+                              ? "bg-muted/20"
+                              : isActive
+                                ? isHigh
+                                  ? "bg-red-500"
+                                  : isMid
+                                    ? "bg-yellow-400"
+                                    : "bg-green-500"
+                                : "bg-muted/30"
+                          }`}
+                          style={{ height: `${40 + i * 5}%` }}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {muted ? <VolumeX className="w-3.5 h-3.5 text-muted-foreground" /> : <Volume2 className="w-3.5 h-3.5 text-muted-foreground" />}
+                    <Switch
+                      checked={muted}
+                      onCheckedChange={handleMuteToggle}
+                      disabled={!micEnabled}
+                      aria-label="Mute voice"
+                    />
+                    <span className="text-xs font-mono text-muted-foreground">Mute</span>
+                  </div>
+                </div>
+
+                {relayStats !== null && (
+                  <div className={`flex items-center gap-2 text-xs font-mono px-2 py-1.5 rounded border ${
+                    relayStats.droppedFrames > 0
+                      ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
+                      : "bg-green-500/10 border-green-500/20 text-green-400"
+                  }`}>
+                    <Radio className="w-3 h-3 shrink-0" />
+                    <span className="text-muted-foreground/80 uppercase tracking-widest text-[10px]">Relay</span>
+                    <span className="flex-1" />
+                    <span title="Frames delivered to aplay">
+                      {(relayStats.receivedFrames - relayStats.droppedFrames).toLocaleString()} delivered
                     </span>
+                    {relayStats.droppedFrames > 0 && (
+                      <>
+                        <span className="text-muted-foreground/50">/</span>
+                        <span className="text-amber-400" title="Frames dropped due to back-pressure">
+                          {relayStats.droppedFrames.toLocaleString()} dropped
+                        </span>
+                      </>
+                    )}
+                    {relayStats.bufferedChunks > 0 && (
+                      <span className="text-muted-foreground/70" title="Chunks currently buffered">
+                        ({relayStats.bufferedChunks} buffered)
+                      </span>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Pi Bluetooth Mic mode */}
+            {sourceMode === "local" && (
+              <div className="space-y-3">
+                {/* Device picker */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">ALSA Capture Device</span>
+                    <button
+                      type="button"
+                      onClick={loadInputDevices}
+                      disabled={devicesLoading}
+                      className="text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                      title="Refresh device list"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${devicesLoading ? "animate-spin" : ""}`} />
+                    </button>
+                  </div>
+
+                  {devicesLoading ? (
+                    <div className="text-xs text-muted-foreground/60 font-mono py-1">Scanning devices…</div>
+                  ) : inputDevices.length === 0 ? (
+                    <div className="text-xs bg-amber-500/10 border border-amber-500/30 rounded p-2 text-amber-300 leading-relaxed">
+                      No ALSA capture devices found. Pair your Bluetooth mic first, then{" "}
+                      <code className="font-mono bg-amber-900/40 px-1 rounded">arecord -l</code> should list it.{" "}
+                      <a
+                        href="AUDIO_SETUP.md#7-bluetooth-microphone-setup"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline underline-offset-2 hover:text-amber-200 transition-colors"
+                      >
+                        Setup guide
+                      </a>
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedDevice ?? ""}
+                      onChange={(e) => handleDeviceChange(e.target.value)}
+                      className="w-full bg-background border border-border/50 rounded px-2 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    >
+                      {inputDevices.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name} ({d.id})</option>
+                      ))}
+                    </select>
                   )}
                 </div>
 
-                <Collapsible open={fixOpen} onOpenChange={setFixOpen}>
-                  <CollapsibleTrigger className="flex items-center gap-1 text-red-300/80 hover:text-red-200 transition-colors cursor-pointer select-none font-mono tracking-wide">
-                    {fixOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                    How to fix
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-2 space-y-2.5">
-                    <div className="space-y-1">
-                      <p className="text-red-300/70">Quick fix (current boot only):</p>
-                      <CopyCommand
-                        command="sudo modprobe snd_aloop"
-                        copiedCmd={copiedCmd}
-                        onCopy={setCopiedCmd}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-red-300/70">Persistent (survives reboot):</p>
-                      <CopyCommand
-                        command="sudo systemctl enable --now alsa-loopback"
-                        copiedCmd={copiedCmd}
-                        onCopy={setCopiedCmd}
-                      />
-                    </div>
-                    <p className="text-red-300/60 leading-relaxed pt-0.5">
-                      Full setup instructions:{" "}
-                      <a
-                        href="AUDIO_SETUP.md#6-storyteller-voice--alsa-loopback-setup"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline underline-offset-2 hover:text-red-200 transition-colors"
-                      >
-                        AUDIO_SETUP.md §6
-                      </a>
-                    </p>
-                  </CollapsibleContent>
-                </Collapsible>
-              </div>
-            )}
+                {/* Enable/disable local capture */}
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant={micEnabled ? "default" : "outline"}
+                    size="sm"
+                    className={`gap-2 ${micEnabled ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-500" : ""}`}
+                    onClick={() => handleLocalMicToggle(!micEnabled)}
+                    disabled={inputDevices.length === 0 || !selectedDevice}
+                    title={inputDevices.length === 0 ? "No capture device available" : undefined}
+                  >
+                    <Bluetooth className="w-3.5 h-3.5" />
+                    {micEnabled ? "Capturing" : "Start Capture"}
+                  </Button>
 
-            {error && (
-              <div className="text-xs text-destructive bg-destructive/10 rounded p-2 border border-destructive/30">
-                {error}
-              </div>
-            )}
-
-            <div className="flex items-center gap-3">
-              <Button
-                variant={micEnabled ? "default" : "outline"}
-                size="sm"
-                className={`gap-2 ${micEnabled ? "bg-primary text-primary-foreground" : ""}`}
-                onClick={() => handleMicToggle(!micEnabled)}
-                disabled={loopbackChecked && loopbackAvailable === false}
-                title={loopbackChecked && loopbackAvailable === false ? "ALSA loopback not available" : undefined}
-              >
-                {micEnabled ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
-                {micEnabled ? "Mic On" : "Enable Mic"}
-              </Button>
-
-              <div className="flex-1 flex items-center gap-0.5 h-5">
-                {Array.from({ length: levelBars }).map((_, i) => {
-                  const isActive = i < activeBars;
-                  const isHigh = i >= levelBars * 0.75;
-                  const isMid = i >= levelBars * 0.5;
-                  return (
-                    <div
-                      key={i}
-                      className={`flex-1 rounded-sm transition-all duration-75 ${
-                        !micEnabled
-                          ? "bg-muted/20"
-                          : isActive
-                            ? isHigh
-                              ? "bg-red-500"
-                              : isMid
-                                ? "bg-yellow-400"
-                                : "bg-green-500"
-                            : "bg-muted/30"
-                      }`}
-                      style={{ height: `${40 + i * 5}%` }}
+                  <div className="flex items-center gap-2">
+                    {muted ? <VolumeX className="w-3.5 h-3.5 text-muted-foreground" /> : <Volume2 className="w-3.5 h-3.5 text-muted-foreground" />}
+                    <Switch
+                      checked={muted}
+                      onCheckedChange={handleMuteToggle}
+                      disabled={!micEnabled}
+                      aria-label="Mute voice"
                     />
-                  );
-                })}
-              </div>
+                    <span className="text-xs font-mono text-muted-foreground">Mute</span>
+                  </div>
+                </div>
 
-              <div className="flex items-center gap-2">
-                {muted ? <VolumeX className="w-3.5 h-3.5 text-muted-foreground" /> : <Volume2 className="w-3.5 h-3.5 text-muted-foreground" />}
-                <Switch
-                  checked={muted}
-                  onCheckedChange={handleMuteToggle}
-                  disabled={!micEnabled}
-                  aria-label="Mute voice"
-                />
-                <span className="text-xs font-mono text-muted-foreground">Mute</span>
-              </div>
-            </div>
-
-            {relayStats !== null && (
-              <div className={`flex items-center gap-2 text-xs font-mono px-2 py-1.5 rounded border ${
-                relayStats.droppedFrames > 0
-                  ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
-                  : "bg-green-500/10 border-green-500/20 text-green-400"
-              }`}>
-                <Radio className="w-3 h-3 shrink-0" />
-                <span className="text-muted-foreground/80 uppercase tracking-widest text-[10px]">Relay</span>
-                <span className="flex-1" />
-                <span title="Frames delivered to aplay">
-                  {(relayStats.receivedFrames - relayStats.droppedFrames).toLocaleString()} delivered
-                </span>
-                {relayStats.droppedFrames > 0 && (
-                  <>
-                    <span className="text-muted-foreground/50">/</span>
-                    <span className="text-amber-400" title="Frames dropped due to back-pressure">
-                      {relayStats.droppedFrames.toLocaleString()} dropped
-                    </span>
-                  </>
+                {/* Status indicator */}
+                {localCapturing && localDeviceName && (
+                  <div className="flex items-center gap-2 text-xs font-mono px-2 py-1.5 rounded border bg-blue-500/10 border-blue-500/30 text-blue-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse shrink-0" />
+                    <span className="uppercase tracking-widest text-[10px] text-blue-400/80">Capturing locally</span>
+                    <span className="flex-1" />
+                    <span className="text-blue-200/80 truncate max-w-[140px]" title={localDeviceName}>{localDeviceName}</span>
+                  </div>
                 )}
-                {relayStats.bufferedChunks > 0 && (
-                  <span className="text-muted-foreground/70" title="Chunks currently buffered">
-                    ({relayStats.bufferedChunks} buffered)
-                  </span>
+
+                {/* Capture error */}
+                {localCaptureError && (
+                  <div className="text-xs bg-red-500/10 border border-red-500/40 rounded p-2.5 space-y-1.5">
+                    <div className="flex gap-2 items-start">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                      <div className="space-y-1">
+                        <p className="text-red-200/90 leading-relaxed">{localCaptureError}</p>
+                        <p className="text-red-300/60">
+                          Check that the Bluetooth mic is still paired and visible in{" "}
+                          <code className="font-mono bg-red-900/40 px-1 rounded">arecord -l</code>.
+                          Reconnect the mic and press Start Capture again.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="text-xs text-destructive bg-destructive/10 rounded p-2 border border-destructive/30">
+                    {error}
+                  </div>
                 )}
               </div>
             )}
@@ -514,7 +868,9 @@ export function StorytellerVoice() {
 
             {!micEnabled && (
               <p className="text-xs text-muted-foreground/60 leading-relaxed">
-                Enable the microphone to blend the storyteller's voice into the soundscape. The browser will request mic permission.
+                {sourceMode === "browser"
+                  ? "Enable the microphone to blend the storyteller's voice into the soundscape. The browser will request mic permission."
+                  : "Select a Bluetooth capture device and press Start Capture to blend the storyteller's voice into the soundscape without a browser mic."}
               </p>
             )}
           </CardContent>

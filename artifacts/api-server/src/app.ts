@@ -9,6 +9,7 @@ import { initRouter } from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 import { initWebSocketServer, broadcastState, broadcastOverlayToggle } from "./lib/wsServer.js";
 import { initVoiceWebSocket, closeVoiceWebSocket } from "./lib/voiceRelay.js";
+import { start as startLocalCapture, stop as stopLocalCapture } from "./lib/localMicRelay.js";
 import { initOscServer } from "./lib/oscServer.js";
 import { startSuperCollider, stopSuperCollider, onEverySuperColliderReady, onEverySuperColliderExit } from "./lib/supercollider.js";
 import {
@@ -92,6 +93,13 @@ export function createAppServer(): Server {
 
   initFromShow(currentShow);
 
+  // Restore local capture if it was persisted as the active source
+  const savedSource = currentShow.voiceSource;
+  if (savedSource?.mode === "local" && savedSource.device) {
+    logger.info({ device: savedSource.device }, "Restoring local mic capture from persisted source");
+    startLocalCapture(savedSource.device);
+  }
+
   startSuperCollider();
 
   onEverySuperColliderExit(() => {
@@ -118,6 +126,7 @@ export function createAppServer(): Server {
     teardown();
     stopSuperCollider();
     closeVoiceWebSocket();
+    stopLocalCapture();
     saveShow(currentShow);
     process.exit(0);
   }

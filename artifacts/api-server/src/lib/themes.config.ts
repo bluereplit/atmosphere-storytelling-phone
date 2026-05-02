@@ -91,6 +91,18 @@ export const DEFAULT_VOICE_PARAMS: VoiceParams = {
   reverb: 0.2,
 };
 
+export type VoiceSourceMode = "browser" | "local";
+
+export interface VoiceSource {
+  mode: VoiceSourceMode;
+  device: string | null;
+}
+
+export const DEFAULT_VOICE_SOURCE: VoiceSource = {
+  mode: "browser",
+  device: null,
+};
+
 export interface ShowConfig {
   environmentTheme: EnvironmentTheme;
   intensity: number;
@@ -99,6 +111,7 @@ export interface ShowConfig {
   attributeTempo: Partial<Record<AttributeName, number>>;
   muted: boolean;
   voice: VoiceParams;
+  voiceSource?: VoiceSource;
 }
 
 export const DEFAULT_PHASE_PARAMS: Record<Phase, PhaseParams> = {

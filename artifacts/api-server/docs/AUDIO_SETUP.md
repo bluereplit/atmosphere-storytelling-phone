@@ -203,7 +203,150 @@ sudo apt install -y alsa-utils
 
 ---
 
-## 7. Auto-launch on Boot (systemd)
+## 7. Bluetooth Microphone Setup
+
+The **Pi Bluetooth Mic** mode lets the storyteller use a Bluetooth microphone physically paired to the Raspberry Pi. Audio is captured locally using `arecord` and piped directly to the ALSA loopback — no browser mic permission is required and network latency is eliminated.
+
+### What you need
+
+- A Bluetooth microphone (e.g. a wireless headset or lapel mic transmitter)
+- `bluez` and `bluez-alsa` (the ALSA-only Bluetooth audio backend for Pi OS Lite)
+- `alsa-utils` for `arecord`
+
+### 1. Install bluez-alsa
+
+```bash
+sudo apt update
+sudo apt install -y bluez bluez-alsa-utils alsa-utils
+```
+
+Enable and start the bluealsa service:
+
+```bash
+sudo systemctl enable --now bluetooth
+sudo systemctl enable --now bluealsa
+```
+
+> **Note:** `bluez-alsa` (also called `bluealsa`) provides the ALSA-compatible interface for Bluetooth devices without requiring PulseAudio or PipeWire. On Pi OS Lite this is the minimal viable path.
+
+### 2. Create the ALSA Bluetooth config
+
+Add a virtual capture device so `arecord` can see the Bluetooth mic by a stable name. Edit `~/.asoundrc`:
+
+```
+# Bluetooth microphone capture device
+pcm.bt_mic {
+    type plug
+    slave.pcm {
+        type bluealsa
+        device "XX:XX:XX:XX:XX:XX"   # replace with your mic's BT address
+        profile "sco"
+    }
+}
+ctl.bt_mic {
+    type bluealsa
+    device "XX:XX:XX:XX:XX:XX"
+}
+```
+
+Or rely on the auto-generated `hw:` device that bluealsa creates and select it by name in the dashboard.
+
+### 3. Pair the Bluetooth mic
+
+```bash
+bluetoothctl
+# Inside bluetoothctl:
+power on
+agent on
+scan on
+# Wait for your mic's address to appear, then:
+pair XX:XX:XX:XX:XX:XX
+trust XX:XX:XX:XX:XX:XX
+connect XX:XX:XX:XX:XX:XX
+quit
+```
+
+Verify the mic is connected:
+
+```bash
+bluetoothctl info XX:XX:XX:XX:XX:XX
+# Look for: Connected: yes
+```
+
+### 4. Verify arecord can see the device
+
+```bash
+arecord -l
+```
+
+You should see an entry like:
+
+```
+card 2: Device [Headset Mono], device 0: Bluetooth SCO [Bluetooth SCO]
+```
+
+This gives you the ALSA device ID (e.g. `hw:2,0`) to select in the dashboard.
+
+### 5. Test capture before the show
+
+```bash
+# Record 5 seconds and play back
+arecord -D hw:2,0 -f S16_LE -r 44100 -c 1 -d 5 /tmp/test.wav
+aplay /tmp/test.wav
+```
+
+If you hear your voice, the mic is working correctly.
+
+### 6. Use the dashboard source selector
+
+1. Open the **Storyteller Voice** panel in the dashboard.
+2. Click **Pi Bluetooth Mic** in the source selector.
+3. The device dropdown will list all ALSA capture devices. Select the Bluetooth mic.
+4. Press **Start Capture** — the server will run `arecord` on the Pi and pipe audio into SuperCollider.
+5. A blue "Capturing locally" indicator confirms audio is flowing.
+
+If the mic disconnects mid-show, the dashboard shows a "Capture lost" error with recovery guidance. Reconnect the mic via `bluetoothctl connect XX:XX:XX:XX:XX:XX` and press **Start Capture** again.
+
+### 7. Auto-reconnect on boot (optional)
+
+To make the Bluetooth mic connect automatically at boot, add a udev rule or use a systemd service:
+
+```bash
+sudo nano /etc/systemd/system/bt-mic-connect.service
+```
+
+```ini
+[Unit]
+Description=Connect Bluetooth mic at boot
+After=bluetooth.target bluealsa.service
+Wants=bluetooth.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bluetoothctl connect XX:XX:XX:XX:XX:XX
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable bt-mic-connect
+```
+
+### Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `arecord -l` shows no Bluetooth device | Check `systemctl status bluealsa`; ensure mic is connected via `bluetoothctl` |
+| `bluealsa` not found | Run `sudo apt install bluez-alsa-utils` |
+| "Capture stopped unexpectedly" in dashboard | Bluetooth mic disconnected — reconnect and press Start Capture |
+| Audio crackles or drops | Bluetooth SCO profile has narrow bandwidth; move mic closer to Pi or reduce interference |
+| `hci0: SCO connect` errors in `dmesg` | Some USB BT dongles don't support SCO; use the Pi's built-in Bluetooth or a HFP-compatible dongle |
+
+---
+
+## 8. Auto-launch on Boot (systemd)
 
 Create a systemd service to start the system automatically:
 
