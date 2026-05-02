@@ -22,15 +22,15 @@ args = "artifacts/atmosphere-display: Visual Display"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
+args = "sc-syntax"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
 args = "API Server"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Control Dashboard"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "sc-syntax"
 
 [[workflows.workflow]]
 name = "artifacts/atmosphere-display: Visual Display"
@@ -42,6 +42,17 @@ args = "SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy python3 artifacts/atmosp
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow]]
+name = "sc-syntax"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/check_sc_syntax.sh"
+
+[workflows.workflow.metadata]
+isValidation = true
 
 [[workflows.workflow]]
 name = "API Server"
@@ -66,17 +77,6 @@ waitForPort = 20266
 
 [workflows.workflow.metadata]
 outputType = "webview"
-
-[[workflows.workflow]]
-name = "sc-syntax"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "bash scripts/check_sc_syntax.sh"
-
-[workflows.workflow.metadata]
-isValidation = true
 
 [agent]
 stack = "PNPM_WORKSPACE"

@@ -5,7 +5,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Mic, MicOff, Volume2, VolumeX, Waves, ChevronDown, ChevronRight, AlertTriangle, CheckCircle2, XCircle, Radio } from "lucide-react";
+import { Mic, MicOff, Volume2, VolumeX, Waves, ChevronDown, ChevronRight, AlertTriangle, CheckCircle2, XCircle, Radio, Copy, Check } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -74,12 +74,42 @@ interface MicSession {
   ws: WebSocket;
 }
 
+function CopyCommand({ command, copiedCmd, onCopy }: {
+  command: string;
+  copiedCmd: string | null;
+  onCopy: (cmd: string | null) => void;
+}) {
+  const isCopied = copiedCmd === command;
+  const handleCopy = () => {
+    navigator.clipboard.writeText(command).catch(() => {});
+    onCopy(command);
+    setTimeout(() => onCopy(null), 2000);
+  };
+  return (
+    <div className="flex items-center gap-1.5 bg-red-900/50 rounded px-2 py-1.5 font-mono text-red-200 text-[11px]">
+      <code className="flex-1 select-all">{command}</code>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="shrink-0 text-red-300/60 hover:text-red-200 transition-colors"
+        title="Copy to clipboard"
+      >
+        {isCopied
+          ? <Check className="w-3 h-3 text-green-400" />
+          : <Copy className="w-3 h-3" />}
+      </button>
+    </div>
+  );
+}
+
 export function StorytellerVoice() {
   const { state } = useConnection();
 
   const serverVoice = state?.voice ?? { active: false, gain: 0.8, reverb: 0.2 };
 
   const [open, setOpen] = useState(false);
+  const [fixOpen, setFixOpen] = useState(false);
+  const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
   const [micEnabled, setMicEnabled] = useState(false);
   const [muted, setMuted] = useState(false);
   const [gain, setGain] = useState(serverVoice.gain);
@@ -306,32 +336,63 @@ export function StorytellerVoice() {
             </div>
 
             {loopbackChecked && loopbackAvailable === false && (
-              <div className="flex gap-2 items-start text-xs bg-red-500/10 border border-red-500/40 rounded p-2.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
-                {loopbackStatus?.error ? (
-                  <span className="text-red-200/90 leading-relaxed">
-                    Could not check ALSA loopback status ({loopbackStatus.error.split("\n")[0]}). Run the check manually:{" "}
-                    <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">
-                      lsmod | grep snd_aloop
-                    </code>
-                  </span>
-                ) : !loopbackStatus?.moduleLoaded ? (
-                  <span className="text-red-200/90 leading-relaxed">
-                    The <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">snd_aloop</code> module is not loaded. Voice audio will be silently discarded.{" "}
-                    Run:{" "}
-                    <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">
-                      sudo systemctl start alsa-loopback
-                    </code>
-                  </span>
-                ) : (
-                  <span className="text-red-200/90 leading-relaxed">
-                    Module loaded but ALSA Loopback device not found in <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">/proc/asound/cards</code>. Voice audio will be silently discarded.{" "}
-                    Run:{" "}
-                    <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">
-                      sudo systemctl start alsa-loopback
-                    </code>
-                  </span>
-                )}
+              <div className="text-xs bg-red-500/10 border border-red-500/40 rounded p-2.5 space-y-2">
+                <div className="flex gap-2 items-start">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" />
+                  {loopbackStatus?.error ? (
+                    <span className="text-red-200/90 leading-relaxed">
+                      Could not check ALSA loopback status ({loopbackStatus.error.split("\n")[0]}). Run the check manually:{" "}
+                      <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">
+                        lsmod | grep snd_aloop
+                      </code>
+                    </span>
+                  ) : !loopbackStatus?.moduleLoaded ? (
+                    <span className="text-red-200/90 leading-relaxed">
+                      The <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">snd_aloop</code> kernel module is not loaded. Voice audio will be silently discarded.
+                    </span>
+                  ) : (
+                    <span className="text-red-200/90 leading-relaxed">
+                      Module loaded but ALSA Loopback device not found in{" "}
+                      <code className="font-mono bg-red-900/40 px-1 py-0.5 rounded text-red-200">/proc/asound/cards</code>. Voice audio will be silently discarded.
+                    </span>
+                  )}
+                </div>
+
+                <Collapsible open={fixOpen} onOpenChange={setFixOpen}>
+                  <CollapsibleTrigger className="flex items-center gap-1 text-red-300/80 hover:text-red-200 transition-colors cursor-pointer select-none font-mono tracking-wide">
+                    {fixOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                    How to fix
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2 space-y-2.5">
+                    <div className="space-y-1">
+                      <p className="text-red-300/70">Quick fix (current boot only):</p>
+                      <CopyCommand
+                        command="sudo modprobe snd_aloop"
+                        copiedCmd={copiedCmd}
+                        onCopy={setCopiedCmd}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-red-300/70">Persistent (survives reboot):</p>
+                      <CopyCommand
+                        command="sudo systemctl enable --now alsa-loopback"
+                        copiedCmd={copiedCmd}
+                        onCopy={setCopiedCmd}
+                      />
+                    </div>
+                    <p className="text-red-300/60 leading-relaxed pt-0.5">
+                      Full setup instructions:{" "}
+                      <a
+                        href="AUDIO_SETUP.md#6-storyteller-voice--alsa-loopback-setup"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline underline-offset-2 hover:text-red-200 transition-colors"
+                      >
+                        AUDIO_SETUP.md §6
+                      </a>
+                    </p>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
             )}
 
