@@ -197,17 +197,25 @@ function AttributeControl({ name, initialTempo }: { name: AttributeName; initial
 
       {/* BPM — always visible for rhythm attributes */}
       {isTempo && (
-        <div className={`flex items-center gap-2 ${enabled ? "" : "opacity-50"}`}>
-          <Activity className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <Slider
-            value={[localTempo]}
-            min={20}
-            max={200}
-            step={1}
-            onValueChange={handleTempoChange}
-            className="flex-1"
-          />
-          <span className="text-xs text-muted-foreground w-12 text-right shrink-0">{localTempo} bpm</span>
+        <div className={`flex flex-col gap-0.5 ${enabled ? "" : "opacity-50"}`}>
+          <div className="flex items-center gap-2">
+            <Activity className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <Slider
+              value={[localTempo]}
+              min={20}
+              max={200}
+              step={1}
+              onValueChange={handleTempoChange}
+              className="flex-1"
+            />
+            <span className="text-xs font-mono text-primary w-12 text-right shrink-0">
+              {localTempo < 80 ? "Slow" : localTempo <= 140 ? "Med" : "Fast"}
+            </span>
+          </div>
+          <div className="flex justify-between pl-5 pr-0">
+            <span className="text-[10px] text-muted-foreground/50 leading-none">Slow</span>
+            <span className="text-[10px] text-muted-foreground/50 leading-none">Fast</span>
+          </div>
         </div>
       )}
 
