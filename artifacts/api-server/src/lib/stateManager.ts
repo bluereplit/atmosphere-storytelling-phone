@@ -29,7 +29,7 @@ export interface LiveState {
   environmentTheme: EnvironmentTheme;
   intensity: number;
   phaseParams: PhaseParams;
-  attributes: Record<AttributeName, { enabled: boolean; volume: number }>;
+  attributes: Record<AttributeName, { enabled: boolean; volume: number; distance?: number }>;
   muted: boolean;
   scReady: boolean;
   voice: VoiceState;
@@ -76,11 +76,14 @@ function emit(): void {
 }
 
 export function getLiveState(): LiveState {
-  const attributes = {} as Record<AttributeName, { enabled: boolean; volume: number }>;
+  const attributes = {} as Record<AttributeName, { enabled: boolean; volume: number; distance?: number }>;
   for (const name of ATTRIBUTE_NAMES) {
+    const extras = attrExtras.get(name);
+    const distance = extras?.["distance"];
     attributes[name] = {
       enabled: attrEnabled.get(name) ?? false,
       volume: attrVolumes.get(name) ?? 0.7,
+      ...(distance !== undefined ? { distance } : {}),
     };
   }
   return {
