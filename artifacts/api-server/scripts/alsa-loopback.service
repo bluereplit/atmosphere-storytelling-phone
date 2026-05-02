@@ -1,0 +1,32 @@
+# alsa-loopback.service — TEMPLATE
+#
+# This file is a reference template. install.sh copies it to
+# /etc/systemd/system/alsa-loopback.service and substitutes the correct
+# ExecStart path for your installation directory.
+#
+# To install manually:
+#   sudo cp alsa-loopback.service /etc/systemd/system/
+#   sudo sed -i "s|REPO_DIR_PLACEHOLDER|$(pwd)|g" /etc/systemd/system/alsa-loopback.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now alsa-loopback
+
+[Unit]
+Description=ALSA Loopback — Load snd-aloop for Storyteller Voice relay
+Documentation=file:AUDIO_SETUP.md
+# Must run after the filesystem is mounted (script lives on disk)
+After=local-fs.target
+# Ensure the loopback is ready before audio-dependent services start
+Before=atmosphere-backend.service sound.target
+DefaultDependencies=no
+ConditionPathExists=/sbin/modprobe
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# REPO_DIR_PLACEHOLDER is substituted by install.sh with the real install path
+ExecStart=/bin/bash REPO_DIR_PLACEHOLDER/artifacts/api-server/scripts/setup-alsa-loopback.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=sysinit.target

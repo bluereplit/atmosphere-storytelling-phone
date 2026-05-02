@@ -140,13 +140,35 @@ Browser mic → WebSocket /ws/voice → aplay → ALSA Loopback (playback side)
 
 ### Enable the ALSA loopback
 
-Run the included setup script once after each boot (or persist it across reboots):
+**After running `install.sh` the loopback is enabled automatically.**  `install.sh` installs and enables a dedicated systemd service (`alsa-loopback.service`) that loads `snd-aloop` every time the Pi boots — no manual steps are needed.
 
+Check the service status at any time:
+
+```bash
+sudo systemctl status alsa-loopback
+# View the last boot's setup log:
+journalctl -u alsa-loopback --no-pager
+```
+
+#### Manual setup (if you skipped `install.sh`)
+
+If you need to enable the loopback without running the full installer, do one of the following:
+
+**Option A — one-shot (current boot only):**
 ```bash
 sudo bash artifacts/api-server/scripts/setup-alsa-loopback.sh
 ```
 
-To load the loopback module automatically at boot:
+**Option B — persistent via systemd (recommended):**
+```bash
+# Copy the unit file and enable the service
+sudo cp artifacts/api-server/scripts/alsa-loopback.service /etc/systemd/system/
+# Edit ExecStart to point to your repo's copy of setup-alsa-loopback.sh, then:
+sudo systemctl daemon-reload
+sudo systemctl enable --now alsa-loopback
+```
+
+**Option C — kernel modules list:**
 ```bash
 echo snd-aloop | sudo tee -a /etc/modules
 ```

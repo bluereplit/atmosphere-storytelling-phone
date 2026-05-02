@@ -15,8 +15,9 @@
 #    3. Runs pnpm install
 #    4. Installs Python packages from requirements.txt
 #    5. Builds the API server
-#    6. Writes systemd unit files for atmosphere-backend and atmosphere-display
-#    7. Prints next-step instructions
+#    6. Installs and enables the alsa-loopback systemd service (snd-aloop)
+#    7. Writes systemd unit files for atmosphere-backend and atmosphere-display
+#    8. Prints next-step instructions
 # =============================================================================
 
 set -euo pipefail
@@ -42,7 +43,7 @@ info "Installing for user: $INSTALL_USER (home: $INSTALL_HOME)"
 
 echo ""
 info "============================================================"
-info "  Step 1/6 — System packages"
+info "  Step 1/7 — System packages"
 info "============================================================"
 
 $SUDO apt-get update -qq
@@ -69,7 +70,7 @@ success "System packages installed."
 
 echo ""
 info "============================================================"
-info "  Step 2/6 — Node.js 20"
+info "  Step 2/7 — Node.js 20"
 info "============================================================"
 
 if command -v node &>/dev/null; then
@@ -91,7 +92,7 @@ fi
 
 echo ""
 info "============================================================"
-info "  Step 3/6 — pnpm"
+info "  Step 3/7 — pnpm"
 info "============================================================"
 
 if command -v pnpm &>/dev/null; then
@@ -104,7 +105,7 @@ fi
 
 echo ""
 info "============================================================"
-info "  Step 4/6 — Node.js dependencies & build"
+info "  Step 4/7 — Node.js dependencies & build"
 info "============================================================"
 
 cd "$REPO_DIR"
@@ -119,7 +120,7 @@ success "Node.js dependencies installed and API server built."
 
 echo ""
 info "============================================================"
-info "  Step 5/6 — Python dependencies"
+info "  Step 5/7 — Python dependencies"
 info "============================================================"
 
 info "Installing Python packages from requirements.txt …"
@@ -130,7 +131,38 @@ success "Python dependencies installed."
 
 echo ""
 info "============================================================"
-info "  Step 6/6 — systemd unit files"
+info "  Step 6/7 — ALSA loopback service"
+info "============================================================"
+
+LOOPBACK_SERVICE="/etc/systemd/system/alsa-loopback.service"
+info "Writing $LOOPBACK_SERVICE …"
+$SUDO tee "$LOOPBACK_SERVICE" > /dev/null <<EOF
+[Unit]
+Description=ALSA Loopback — Load snd-aloop for Storyteller Voice relay
+Documentation=file:$REPO_DIR/AUDIO_SETUP.md
+After=local-fs.target
+Before=atmosphere-backend.service sound.target
+DefaultDependencies=no
+ConditionPathExists=/sbin/modprobe
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash $REPO_DIR/artifacts/api-server/scripts/setup-alsa-loopback.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=sysinit.target
+EOF
+
+$SUDO systemctl daemon-reload
+$SUDO systemctl enable --now alsa-loopback || warn "Could not start alsa-loopback service now — it will run on next boot."
+success "alsa-loopback service installed and enabled."
+
+echo ""
+info "============================================================"
+info "  Step 7/7 — systemd unit files"
 info "============================================================"
 
 # ── atmosphere-backend.service ────────────────────────────────────────────────
@@ -200,20 +232,20 @@ echo ""
 echo "  1. Configure audio output (if needed):"
 echo "       See AUDIO_SETUP.md for HDMI, USB, or 3.5mm jack setup."
 echo ""
-echo "  2. Enable the ALSA loopback (for Storyteller Voice feature):"
-echo "       sudo bash $REPO_DIR/artifacts/api-server/scripts/setup-alsa-loopback.sh"
-echo "       echo snd-aloop | sudo tee -a /etc/modules"
+echo "     Note: the ALSA loopback (snd-aloop) for Storyteller Voice is"
+echo "     now managed automatically by the alsa-loopback systemd service."
+echo "     Check its status with: sudo systemctl status alsa-loopback"
 echo ""
-echo "  3. Start the backend now:"
+echo "  2. Start the backend now:"
 echo "       sudo systemctl enable --now atmosphere-backend"
 echo "       sudo systemctl status atmosphere-backend"
 echo ""
-echo "  4. Start the display now:"
+echo "  3. Start the display now:"
 echo "       sudo systemctl enable --now atmosphere-display"
 echo "         (requires a running X server or switch SDL_VIDEODRIVER=kmsdrm in"
 echo "          $DISPLAY_SERVICE for KMS/DRM / Pi OS Lite)"
 echo ""
-echo "  5. Open the control dashboard from any browser on the same network:"
+echo "  4. Open the control dashboard from any browser on the same network:"
 echo "       http://<pi-ip-address>:8080"
 echo ""
 echo "  View live logs:"

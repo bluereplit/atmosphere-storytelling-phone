@@ -6,10 +6,10 @@
 # SuperCollider via aplay on one side of the loopback, while SuperCollider
 # reads it back as a SoundIn input bus on the other side.
 #
-# Run once after boot (or add to /etc/rc.local or a systemd service):
-#   sudo bash scripts/setup-alsa-loopback.sh
-#
-# To load automatically at boot, add "snd-aloop" to /etc/modules.
+# Normally this script is invoked automatically at boot by the
+# alsa-loopback.service systemd unit (installed by install.sh).
+# It is safe to run manually at any time — it is idempotent and will
+# report "already loaded" if snd-aloop is already present.
 
 set -euo pipefail
 
@@ -35,5 +35,5 @@ echo "    SuperCollider must use the Loopback capture device as its input."
 echo "    Set SUPERCOLLIDER_INPUT_DEVICE=hw:Loopback,1 or configure scsynth"
 echo "    with -i 2 and the loopback card name when launching."
 echo ""
-echo "    To persist across reboots, add 'snd-aloop' to /etc/modules:"
-echo "      echo snd-aloop | sudo tee -a /etc/modules"
+echo "    Persistence across reboots is handled by the alsa-loopback systemd"
+echo "    service (installed by install.sh). Check: systemctl status alsa-loopback"
