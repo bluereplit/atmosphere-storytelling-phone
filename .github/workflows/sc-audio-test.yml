@@ -44,5 +44,16 @@ jobs:
           # initialises cleanly even without a physical monitor.
           # timeout(1) caps the entire run at 900 s; the test script
           # exits 0 on full pass and 1 on any failure via 0.exit / 1.exit.
+          # Output is captured to sc_test.log (via tee) so the summary step
+          # can parse it without re-running the suite.
           xvfb-run --auto-servernum \
-            timeout 900 sclang artifacts/api-server/sc/test_all.scd
+            timeout 900 sclang artifacts/api-server/sc/test_all.scd \
+            2>&1 | tee sc_test.log
+          # Preserve the exit code that sclang/timeout produced
+          exit "${PIPESTATUS[0]}"
+
+      - name: Write CI summary
+        if: always()
+        run: |
+          chmod +x scripts/summarise_sc_tests.sh
+          scripts/summarise_sc_tests.sh sc_test.log
