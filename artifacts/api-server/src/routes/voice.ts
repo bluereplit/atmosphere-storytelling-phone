@@ -10,6 +10,7 @@ import {
   start as startLocalCapture,
   stop as stopLocalCapture,
   getStatus as getLocalCaptureStatus,
+  setAutoReconnect,
 } from "../lib/localMicRelay.js";
 
 export function makeVoiceRouter(
@@ -98,6 +99,16 @@ export function makeVoiceRouter(
   router.post("/voice/relay-stats/reset", (_req: Request, res: Response) => {
     resetVoiceRelayStats();
     res.json({ ok: true, stats: getVoiceRelayStats() });
+  });
+
+  router.post("/voice/auto-reconnect", (req: Request, res: Response) => {
+    const { enabled } = req.body as { enabled?: unknown };
+    if (typeof enabled !== "boolean") {
+      res.status(400).json({ error: "enabled must be a boolean" });
+      return;
+    }
+    setAutoReconnect(enabled);
+    res.json({ ok: true, captureStatus: getLocalCaptureStatus() });
   });
 
   router.post("/voice/start", (_req: Request, res: Response) => {

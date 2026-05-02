@@ -97,6 +97,10 @@ interface LocalCaptureStatus {
   running: boolean;
   device: string | null;
   error: string | null;
+  reconnecting?: boolean;
+  reconnectAttempt?: number;
+  reconnectMaxAttempts?: number;
+  autoReconnect?: boolean;
 }
 
 async function fetchVoiceSource(): Promise<{ source: VoiceSource; captureStatus: LocalCaptureStatus } | null> {
@@ -128,6 +132,21 @@ async function fetchCaptureStatus(): Promise<LocalCaptureStatus | null> {
     const res = await fetch(`${BASE}/api/voice/capture-status`);
     if (!res.ok) return null;
     return (await res.json()) as LocalCaptureStatus;
+  } catch {
+    return null;
+  }
+}
+
+async function postAutoReconnect(enabled: boolean): Promise<LocalCaptureStatus | null> {
+  try {
+    const res = await fetch(`${BASE}/api/voice/auto-reconnect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as { ok: boolean; captureStatus: LocalCaptureStatus };
+    return data.captureStatus;
   } catch {
     return null;
   }
@@ -243,9 +262,10 @@ export function StorytellerVoice() {
   }, [sourceMode, open, loadInputDevices]);
 
   // Poll capture status when in local mode and panel is open.
-  // If the server reports capture stopped (e.g. mic disconnected) while the
-  // UI thinks it is enabled, sync micEnabled to false so the button label
-  // and state are consistent with the actual server state.
+  // If the server reports capture stopped unexpectedly and is NOT reconnecting,
+  // sync micEnabled to false so the button label and state are consistent.
+  // While the server is in the "reconnecting" state we keep micEnabled=true so
+  // the UI reflects that capture is expected to resume automatically.
   useEffect(() => {
     if (!open || sourceMode !== "local") {
       setCaptureStatus(null);
@@ -256,15 +276,15 @@ export function StorytellerVoice() {
       fetchCaptureStatus().then((s) => {
         if (cancelled) return;
         setCaptureStatus(s);
-        if (s && !s.running && micEnabledRef.current) {
-          // Server-side capture stopped unexpectedly — sync UI
+        if (s && !s.running && !s.reconnecting && micEnabledRef.current) {
+          // Server-side capture stopped and is not auto-reconnecting — sync UI
           setMicEnabled(false);
           postVoiceStop().catch(() => {});
         }
       });
     };
     poll();
-    const id = setInterval(poll, 3000);
+    const id = setInterval(poll, 2000);
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -489,8 +509,17 @@ export function StorytellerVoice() {
   })();
 
   const localCapturing = captureStatus?.running === true;
-  const localCaptureError = captureStatus?.error ?? null;
+  const localReconnecting = captureStatus?.reconnecting === true;
+  const localReconnectAttempt = captureStatus?.reconnectAttempt ?? 0;
+  const localReconnectMax = captureStatus?.reconnectMaxAttempts ?? 3;
+  const localAutoReconnect = captureStatus?.autoReconnect ?? true;
+  const localCaptureError = (!localReconnecting && captureStatus?.error) ? captureStatus.error : null;
   const localDeviceName = captureStatus?.device ?? selectedDevice ?? null;
+
+  const handleAutoReconnectToggle = useCallback(async (checked: boolean) => {
+    const updated = await postAutoReconnect(checked);
+    if (updated) setCaptureStatus(updated);
+  }, []);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -507,10 +536,16 @@ export function StorytellerVoice() {
                   No loopback
                 </span>
               )}
-              {sourceMode === "local" && localCapturing && (
+              {sourceMode === "local" && localCapturing && !localReconnecting && (
                 <span className="ml-auto flex items-center gap-1 text-xs text-blue-400 font-normal normal-case">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
                   Capturing locally
+                </span>
+              )}
+              {sourceMode === "local" && localReconnecting && (
+                <span className="ml-auto flex items-center gap-1 text-xs text-amber-400 font-normal normal-case">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  Reconnecting… ({localReconnectAttempt}/{localReconnectMax})
                 </span>
               )}
               {sourceMode === "browser" && micEnabled && wsConnected && loopbackAvailable !== false && (
@@ -519,7 +554,7 @@ export function StorytellerVoice() {
                   Live
                 </span>
               )}
-              {sourceMode === "local" && localCaptureError && (
+              {sourceMode === "local" && localCaptureError && !localReconnecting && (
                 <span className="ml-auto flex items-center gap-1 text-xs text-red-400 font-normal normal-case">
                   <AlertTriangle className="w-3 h-3" />
                   Capture lost
@@ -809,6 +844,17 @@ export function StorytellerVoice() {
                   </div>
                 )}
 
+                {/* Reconnecting indicator */}
+                {localReconnecting && localDeviceName && (
+                  <div className="flex items-center gap-2 text-xs font-mono px-2 py-1.5 rounded border bg-amber-500/10 border-amber-500/30 text-amber-300">
+                    <RefreshCw className="w-3 h-3 animate-spin shrink-0 text-amber-400" />
+                    <span className="uppercase tracking-widest text-[10px] text-amber-400/80">Reconnecting…</span>
+                    <span className="text-amber-300/70">attempt {localReconnectAttempt} of {localReconnectMax}</span>
+                    <span className="flex-1" />
+                    <span className="text-amber-200/60 truncate max-w-[120px]" title={localDeviceName}>{localDeviceName}</span>
+                  </div>
+                )}
+
                 {/* Capture error */}
                 {localCaptureError && (
                   <div className="text-xs bg-red-500/10 border border-red-500/40 rounded p-2.5 space-y-1.5">
@@ -819,12 +865,29 @@ export function StorytellerVoice() {
                         <p className="text-red-300/60">
                           Check that the Bluetooth mic is still paired and visible in{" "}
                           <code className="font-mono bg-red-900/40 px-1 rounded">arecord -l</code>.
-                          Reconnect the mic and press Start Capture again.
+                          {localAutoReconnect
+                            ? " Auto-reconnect has been attempted — reconnect the mic and press Start Capture again."
+                            : " Reconnect the mic and press Start Capture again."}
                         </p>
                       </div>
                     </div>
                   </div>
                 )}
+
+                {/* Auto-reconnect toggle */}
+                <div className="flex items-center justify-between pt-0.5">
+                  <span className="text-xs font-mono text-muted-foreground uppercase tracking-widest">Auto-reconnect</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-muted-foreground/60">
+                      {localAutoReconnect ? "On" : "Off"}
+                    </span>
+                    <Switch
+                      checked={localAutoReconnect}
+                      onCheckedChange={handleAutoReconnectToggle}
+                      aria-label="Auto-reconnect Bluetooth mic"
+                    />
+                  </div>
+                </div>
 
                 {error && (
                   <div className="text-xs text-destructive bg-destructive/10 rounded p-2 border border-destructive/30">

@@ -91,6 +91,8 @@ import {
   stop,
   isRunning,
   getStatus,
+  setAutoReconnect,
+  RECONNECT_MAX_ATTEMPTS,
 } from "./localMicRelay.js";
 
 // ---------------------------------------------------------------------------
@@ -103,12 +105,27 @@ function tick(): Promise<void> {
 
 /** Tear down any running relay so each lifecycle test starts from a stopped state. */
 async function ensureStopped(): Promise<void> {
+  setAutoReconnect(false); // disable reconnect so exit events don't schedule timers
   if (isRunning()) {
     stop();
     fakeArecord?.emit("exit", 0, null);
     fakeAplay?.emit("exit", 0, null);
     await tick();
   }
+  setAutoReconnect(true); // re-enable for next test
+}
+
+/** Shared helper: expected status shape for the idle/initial state. */
+function idleStatus() {
+  return {
+    running: false,
+    device: null,
+    error: null,
+    reconnecting: false,
+    reconnectAttempt: 0,
+    reconnectMaxAttempts: RECONNECT_MAX_ATTEMPTS,
+    autoReconnect: true,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -222,7 +239,7 @@ describe("localMicRelay lifecycle", () => {
   });
 
   it("getStatus() returns idle state before any start()", () => {
-    expect(getStatus()).toEqual({ running: false, device: null, error: null });
+    expect(getStatus()).toMatchObject({ running: false, device: null, error: null, reconnecting: false });
   });
 
   // --- start() happy path ---
@@ -251,10 +268,17 @@ describe("localMicRelay lifecycle", () => {
     expect(fakeArecord.stdout!.piped).toBe(fakeAplay.stdin);
   });
 
-  it("getStatus() reports running=true with the active device", async () => {
+  it("getStatus() reports running=true with the active device and reconnect fields", async () => {
     start("hw:2,0");
     await tick();
-    expect(getStatus()).toEqual({ running: true, device: "hw:2,0", error: null });
+    expect(getStatus()).toMatchObject({
+      running: true,
+      device: "hw:2,0",
+      error: null,
+      reconnecting: false,
+      reconnectAttempt: 0,
+      reconnectMaxAttempts: RECONNECT_MAX_ATTEMPTS,
+    });
   });
 
   // --- start() idempotency ---
@@ -386,9 +410,11 @@ describe("localMicRelay lifecycle", () => {
     start("hw:2,0");
     await tick();
 
-    // Exit while the relay is still "active" triggers the error path.
+    // Disable auto-reconnect so this test doesn't schedule timers.
+    setAutoReconnect(false);
     fakeArecord.emit("exit", 1, null);
     await tick();
+    setAutoReconnect(true);
 
     const s = getStatus();
     expect(s.running).toBe(false);
@@ -406,5 +432,190 @@ describe("localMicRelay lifecycle", () => {
     const s = getStatus();
     expect(s.device).toBe("hw:3,0");
     expect(s.error).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Auto-reconnect behaviour
+// ---------------------------------------------------------------------------
+
+/**
+ * Microtask yield — works even when fake timers are installed because it uses
+ * Promise scheduling (microtask queue) rather than setTimeout/setInterval.
+ */
+function mt(): Promise<void> {
+  return Promise.resolve();
+}
+
+describe("localMicRelay auto-reconnect", () => {
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    spawnCallCount = 0;
+    vi.clearAllMocks();
+    // Ensure clean state: disable reconnect, stop, re-enable
+    setAutoReconnect(false);
+    stop();
+    await mt();
+    setAutoReconnect(true);
+  });
+
+  afterEach(async () => {
+    setAutoReconnect(false);
+    stop();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    await mt();
+    setAutoReconnect(true);
+    await ensureStopped();
+  });
+
+  it("schedules a reconnect when capture stops unexpectedly", async () => {
+    const { spawn } = await import("child_process");
+    start("hw:2,0");
+    await mt();
+    expect(isRunning()).toBe(true);
+
+    // Simulate unexpected exit — state updates are synchronous
+    fakeArecord.emit("exit", 1, null);
+    await mt();
+
+    const s = getStatus();
+    expect(s.running).toBe(false);
+    expect(s.reconnecting).toBe(true);
+    expect(s.reconnectAttempt).toBe(1);
+
+    // Advance past the retry delay only (runOnlyPendingTimers avoids firing
+    // the stability timer that _doStart() schedules on a successful spawn).
+    const spawnsBefore = (spawn as ReturnType<typeof vi.fn>).mock.calls.length;
+    await vi.runOnlyPendingTimersAsync();
+    await mt();
+
+    expect((spawn as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(spawnsBefore);
+    expect(isRunning()).toBe(true);
+    expect(getStatus().reconnecting).toBe(false);
+  });
+
+  it("increments reconnectAttempt across consecutive spawn failures", async () => {
+    start("hw:2,0");
+    await mt();
+
+    // First unexpected exit → attempt 1 scheduled
+    fakeArecord.emit("exit", 1, null);
+    await mt();
+    expect(getStatus().reconnectAttempt).toBe(1);
+
+    // Fire only the retry timer (not the stability timer) → new spawn → immediately dies → attempt 2
+    await vi.runOnlyPendingTimersAsync();
+    await mt();
+    fakeArecord.emit("exit", 1, null);
+    await mt();
+    expect(getStatus().reconnectAttempt).toBe(2);
+
+    // Fire again → attempt 3
+    await vi.runOnlyPendingTimersAsync();
+    await mt();
+    fakeArecord.emit("exit", 1, null);
+    await mt();
+    expect(getStatus().reconnectAttempt).toBe(3);
+  });
+
+  it("stops retrying and shows exhaustion error after max attempts", async () => {
+    start("hw:2,0");
+    await mt();
+
+    // Sequence: initial failure + RECONNECT_MAX_ATTEMPTS retry failures.
+    // Each retry is triggered by advancing only the pending reconnect timer
+    // (runOnlyPendingTimersAsync avoids firing the stability timer).
+    //
+    // After the last retry fails the counter reaches RECONNECT_MAX_ATTEMPTS
+    // and the exhaustion branch fires (no further retry scheduled).
+    fakeArecord.emit("exit", 1, null);
+    await mt();
+    expect(getStatus().reconnectAttempt).toBe(1);
+
+    for (let i = 1; i <= RECONNECT_MAX_ATTEMPTS; i++) {
+      await vi.runOnlyPendingTimersAsync(); // fire the pending retry timer
+      await mt();
+      fakeArecord.emit("exit", 1, null);   // retry spawn immediately dies
+      await mt();
+    }
+
+    const s = getStatus();
+    expect(s.running).toBe(false);
+    expect(s.reconnecting).toBe(false);
+    expect(s.reconnectAttempt).toBe(0);
+    expect(s.error).toMatch(/did not reconnect/);
+  });
+
+  it("does not reconnect when auto-reconnect is disabled", async () => {
+    setAutoReconnect(false);
+    start("hw:2,0");
+    await mt();
+
+    fakeArecord.emit("exit", 1, null);
+    await mt();
+
+    const s = getStatus();
+    expect(s.reconnecting).toBe(false);
+    expect(s.reconnectAttempt).toBe(0);
+    expect(s.error).toMatch(/Capture stopped unexpectedly/);
+  });
+
+  it("cancels a pending retry when setAutoReconnect(false) is called mid-wait", async () => {
+    start("hw:2,0");
+    await mt();
+
+    fakeArecord.emit("exit", 1, null);
+    await mt();
+    expect(getStatus().reconnecting).toBe(true);
+
+    setAutoReconnect(false);
+    await mt();
+
+    expect(getStatus().reconnecting).toBe(false);
+    expect(getStatus().reconnectAttempt).toBe(0);
+  });
+
+  it("stop() cancels a pending retry and resets counters", async () => {
+    start("hw:2,0");
+    await mt();
+
+    fakeArecord.emit("exit", 1, null);
+    await mt();
+    expect(getStatus().reconnecting).toBe(true);
+
+    stop();
+    await mt();
+
+    expect(getStatus().reconnecting).toBe(false);
+    expect(getStatus().reconnectAttempt).toBe(0);
+  });
+
+  it("user-initiated start() resets attempt counter and cancels reconnect", async () => {
+    start("hw:2,0");
+    await mt();
+
+    // Let first attempt fail
+    fakeArecord.emit("exit", 1, null);
+    await mt();
+    expect(getStatus().reconnectAttempt).toBe(1);
+
+    // User explicitly starts again — counter must reset
+    start("hw:2,0");
+    await mt();
+
+    expect(getStatus().reconnectAttempt).toBe(0);
+    expect(isRunning()).toBe(true);
+  });
+
+  it("getStatus() includes reconnectMaxAttempts equal to RECONNECT_MAX_ATTEMPTS", () => {
+    expect(getStatus().reconnectMaxAttempts).toBe(RECONNECT_MAX_ATTEMPTS);
+  });
+
+  it("getStatus() reflects autoReconnect toggle", () => {
+    setAutoReconnect(false);
+    expect(getStatus().autoReconnect).toBe(false);
+    setAutoReconnect(true);
+    expect(getStatus().autoReconnect).toBe(true);
   });
 });
