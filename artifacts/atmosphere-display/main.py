@@ -161,7 +161,7 @@ class StatusOverlay:
         else:
             self._alpha = max(0.0, self._alpha - fade)
 
-    def _build_lines(self) -> list[str]:
+    def _build_lines(self, max_sound_lines: int | None = None) -> list[str]:
         lines = []
         lines.append(f"PHASE   {self._phase.upper() if self._phase else '—'}")
         lines.append(f"THEME   {self._theme if self._theme else '—'}")
@@ -171,28 +171,47 @@ class StatusOverlay:
             indent = " " * len(prefix)
             char_limit = 40
             sound_lines: list[str] = []
+            attrs_per_line: list[int] = []   # how many attrs ended up on each line
             current = ""
+            current_count = 0
             for attr in self._active_attrs:
                 # Hard-wrap a single token that is itself over the limit
                 if len(attr) > char_limit:
                     if current:
                         sound_lines.append(current)
+                        attrs_per_line.append(current_count)
                         current = ""
+                        current_count = 0
                     sound_lines.append(attr[:char_limit])
+                    attrs_per_line.append(1)
                     attr = attr[char_limit:]
                     while len(attr) > char_limit:
                         sound_lines.append(attr[:char_limit])
+                        attrs_per_line.append(0)
                         attr = attr[char_limit:]
                     current = attr if attr else ""
+                    current_count = 0  # remainder is a continuation; attr was already tallied
                     continue
                 item = attr if not current else ", " + attr
                 if current and len(current) + len(item) > char_limit:
                     sound_lines.append(current)
+                    attrs_per_line.append(current_count)
                     current = attr
+                    current_count = 1
                 else:
                     current += item
+                    current_count += 1
             if current:
                 sound_lines.append(current)
+                attrs_per_line.append(current_count)
+
+            # Apply max_sound_lines cap: replace overflow with "+ N more" trailer
+            if max_sound_lines is not None and len(sound_lines) > max_sound_lines:
+                keep = max(1, max_sound_lines - 1)  # reserve one slot for the trailer
+                hidden_attrs = sum(attrs_per_line[keep:])
+                sound_lines = sound_lines[:keep]
+                sound_lines.append(f"+ {hidden_attrs} more")
+
             lines.append(prefix + sound_lines[0])
             for cont in sound_lines[1:]:
                 lines.append(indent + cont)
@@ -207,19 +226,32 @@ class StatusOverlay:
         if self._font is None:
             self._font = pygame.font.SysFont("monospace", 22, bold=True)
 
-        lines = self._build_lines()
         pad = 14
         line_gap = 6
+        by = 18
+        bottom_margin = 18
+
+        # Measure a single line height before building lines
+        probe = self._font.render("X", True, (240, 240, 240))
+        line_h = probe.get_height()
+
+        # How many total lines fit in the safe area?
+        sh = surface.get_height()
+        max_box_h = sh - by - bottom_margin
+        max_total_lines = max(1, (max_box_h - pad * 2 + line_gap) // (line_h + line_gap))
+
+        # PHASE + THEME always occupy 2 lines; the rest go to sounds (minimum 1)
+        max_sound_lines = max(1, max_total_lines - 2)
+
+        lines = self._build_lines(max_sound_lines=max_sound_lines)
 
         # Pre-render each line to find box dimensions
         rendered = [self._font.render(line, True, (240, 240, 240)) for line in lines]
         box_w = max(r.get_width() for r in rendered) + pad * 2
-        line_h = rendered[0].get_height()
         box_h = len(rendered) * line_h + (len(rendered) - 1) * line_gap + pad * 2
 
         sw = surface.get_width()
         bx = sw - box_w - 20
-        by = 18
 
         box = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
         box.fill((0, 0, 0, int(self._alpha * 175)))
