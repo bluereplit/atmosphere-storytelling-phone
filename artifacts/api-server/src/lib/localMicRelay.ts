@@ -395,3 +395,161 @@ export function getStatus(): LocalMicStatus {
 export function isRunning(): boolean {
   return arecordProcess !== null;
 }
+
+export interface TestCaptureResult {
+  pass: boolean;
+  /** Peak absolute sample value normalised to 0.0–1.0 */
+  peakLevel: number;
+  durationMs: number;
+  error: string | null;
+}
+
+const TEST_CAPTURE_DURATION_S = 3;
+const SILENCE_THRESHOLD = 0.001; // ~33 on a 16-bit scale
+
+/** True while a test-capture operation is in progress. */
+let testCapturing = false;
+
+/** Returns true if a test capture is currently in progress. */
+export function isTestCapturing(): boolean {
+  return testCapturing;
+}
+
+/**
+ * Record TEST_CAPTURE_DURATION_S seconds of audio from `device` into a
+ * temporary in-memory buffer (never routed to SuperCollider / aplay) and
+ * return whether any non-silent PCM was detected.
+ *
+ * Rejects with an error result if another test is already in progress, or
+ * if normal local capture is currently running on the same device.
+ */
+export function testCapture(device: string): Promise<TestCaptureResult> {
+  if (testCapturing) {
+    return Promise.resolve({ pass: false, peakLevel: 0, durationMs: 0, error: "A test capture is already in progress" });
+  }
+  if (arecordProcess !== null) {
+    return Promise.resolve({ pass: false, peakLevel: 0, durationMs: 0, error: "Live capture is active — stop it before running a test" });
+  }
+  if (reconnecting) {
+    return Promise.resolve({ pass: false, peakLevel: 0, durationMs: 0, error: "Auto-reconnect is in progress — wait for it to finish or disable auto-reconnect first" });
+  }
+
+  testCapturing = true;
+
+  // Suspend auto-reconnect for the test duration so that any reconnect timer
+  // that was not yet running cannot fire and start live capture mid-test.
+  const savedAutoReconnect = autoReconnect;
+  _cancelReconnectTimer();
+  autoReconnect = false;
+
+  const startMs = Date.now();
+
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    let settled = false;
+    let timedOut = false;
+    let captureExitCode: number | null = null;
+    let captureExitSignal: NodeJS.Signals | null = null;
+    let safetyTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const settle = (result: TestCaptureResult) => {
+      if (settled) return;
+      settled = true;
+      testCapturing = false;
+      // Restore auto-reconnect setting that was suspended for the test
+      autoReconnect = savedAutoReconnect;
+      if (safetyTimer !== null) {
+        clearTimeout(safetyTimer);
+        safetyTimer = null;
+      }
+      resolve(result);
+    };
+
+    let proc: ReturnType<typeof spawn>;
+    try {
+      proc = spawn(
+        "arecord",
+        [
+          "-D", device,
+          "-f", "S16_LE",
+          "-r", String(SAMPLE_RATE),
+          "-c", "1",
+          "-d", String(TEST_CAPTURE_DURATION_S),
+          "-t", "raw",
+          "-",
+        ],
+        { stdio: ["ignore", "pipe", "pipe"] }
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      settle({ pass: false, peakLevel: 0, durationMs: Date.now() - startMs, error: `Failed to spawn arecord: ${msg}` });
+      return;
+    }
+
+    proc.stdout!.on("data", (chunk: Buffer) => { chunks.push(chunk); });
+    proc.stderr?.on("data", () => { /* discard */ });
+
+    proc.on("error", (err: NodeJS.ErrnoException) => {
+      const msg = err.code === "ENOENT"
+        ? "arecord not found — install alsa-utils on the Pi"
+        : `arecord error: ${err.message}`;
+      settle({ pass: false, peakLevel: 0, durationMs: Date.now() - startMs, error: msg });
+    });
+
+    // Record exit code/signal on `exit`, but defer PCM analysis until `close`
+    // so that stdout has fully drained before we inspect the chunks buffer.
+    proc.on("exit", (code, signal) => {
+      captureExitCode = code;
+      captureExitSignal = signal;
+    });
+
+    proc.on("close", () => {
+      const durationMs = Date.now() - startMs;
+
+      if (timedOut) {
+        settle({ pass: false, peakLevel: 0, durationMs, error: "Test capture timed out — device may be busy or unresponsive" });
+        return;
+      }
+
+      // Treat any abnormal exit as a failed capture regardless of whether
+      // some PCM bytes were buffered.  A partial recording (e.g. Bluetooth
+      // mic disconnected mid-test) must not produce a false pass.
+      if (captureExitSignal !== null) {
+        settle({ pass: false, peakLevel: 0, durationMs, error: `arecord terminated early by signal ${captureExitSignal} — recording incomplete` });
+        return;
+      }
+
+      if (captureExitCode !== null && captureExitCode !== 0) {
+        settle({ pass: false, peakLevel: 0, durationMs, error: `arecord exited with non-zero code ${captureExitCode} — recording incomplete` });
+        return;
+      }
+
+      // arecord exited cleanly (code 0): analyse the complete recording.
+      const buf = Buffer.concat(chunks);
+      if (buf.length === 0) {
+        settle({ pass: false, peakLevel: 0, durationMs, error: "No PCM data received from device" });
+        return;
+      }
+
+      let peak = 0;
+      for (let i = 0; i + 1 < buf.length; i += 2) {
+        const sample = Math.abs(buf.readInt16LE(i));
+        if (sample > peak) peak = sample;
+      }
+
+      const peakLevel = peak / 32767;
+      const pass = peakLevel > SILENCE_THRESHOLD;
+      settle({ pass, peakLevel, durationMs, error: null });
+    });
+
+    // Safety timeout — set flag then SIGTERM so the `close` handler can report it.
+    // The timer reference is cleared in `settle` if the process finishes early.
+    safetyTimer = setTimeout(() => {
+      safetyTimer = null;
+      if (!settled) {
+        timedOut = true;
+        try { proc.kill("SIGTERM"); } catch { /* ignore */ }
+      }
+    }, (TEST_CAPTURE_DURATION_S + 3) * 1000);
+  });
+}

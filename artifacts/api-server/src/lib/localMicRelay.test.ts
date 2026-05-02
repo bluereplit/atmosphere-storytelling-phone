@@ -93,6 +93,8 @@ import {
   getStatus,
   setAutoReconnect,
   RECONNECT_MAX_ATTEMPTS,
+  testCapture,
+  isTestCapturing,
 } from "./localMicRelay.js";
 
 // ---------------------------------------------------------------------------
@@ -616,6 +618,205 @@ describe("localMicRelay auto-reconnect", () => {
     setAutoReconnect(false);
     expect(getStatus().autoReconnect).toBe(false);
     setAutoReconnect(true);
+    expect(getStatus().autoReconnect).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// testCapture — in-memory PCM capture + pass/fail analysis
+// ---------------------------------------------------------------------------
+
+describe("testCapture", () => {
+  beforeEach(async () => {
+    spawnCallCount = 0;
+    vi.clearAllMocks();
+    setAutoReconnect(false);
+    stop();
+    await tick();
+    setAutoReconnect(true);
+    await tick();
+  });
+
+  afterEach(async () => {
+    setAutoReconnect(false);
+    stop();
+    await tick();
+    setAutoReconnect(true);
+    await ensureStopped();
+  });
+
+  it("returns pass=true with non-silent PCM on clean (code 0) exit", async () => {
+    // Inject our process as the next arecord spawn.
+    const proc = new FakeProcess({ hasStdout: true });
+    const { spawn: spawnMock } = await import("child_process");
+    (spawnMock as ReturnType<typeof vi.fn>).mockImplementationOnce(() => proc);
+
+    const promise = testCapture("hw:2,0");
+
+    // Emit a non-silent PCM buffer — sample value 1000 / 32767 ≈ 3%
+    const pcm = Buffer.alloc(4);
+    pcm.writeInt16LE(1000, 0);
+    pcm.writeInt16LE(-1000, 2);
+    proc.stdout!.emit("data", pcm);
+
+    proc.emit("exit", 0, null);
+    proc.emit("close");
+
+    const result = await promise;
+    expect(result.pass).toBe(true);
+    expect(result.peakLevel).toBeCloseTo(1000 / 32767, 4);
+    expect(result.error).toBeNull();
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("returns pass=false (silent) with all-zero PCM on clean exit", async () => {
+    const proc = new FakeProcess({ hasStdout: true });
+    const { spawn: spawnMock } = await import("child_process");
+    (spawnMock as ReturnType<typeof vi.fn>).mockImplementationOnce(() => proc);
+
+    const promise = testCapture("hw:2,0");
+
+    proc.stdout!.emit("data", Buffer.alloc(100, 0)); // all zeros
+    proc.emit("exit", 0, null);
+    proc.emit("close");
+
+    const result = await promise;
+    expect(result.pass).toBe(false);
+    expect(result.peakLevel).toBe(0);
+    expect(result.error).toBeNull(); // silent is not an error
+  });
+
+  it("returns error when arecord exits with non-zero code even with partial PCM", async () => {
+    const proc = new FakeProcess({ hasStdout: true });
+    const { spawn: spawnMock } = await import("child_process");
+    (spawnMock as ReturnType<typeof vi.fn>).mockImplementationOnce(() => proc);
+
+    const promise = testCapture("hw:2,0");
+
+    const pcm = Buffer.alloc(4);
+    pcm.writeInt16LE(20000, 0); // very loud — would be a pass if code 0
+    proc.stdout!.emit("data", pcm);
+    proc.emit("exit", 1, null); // abnormal exit
+    proc.emit("close");
+
+    const result = await promise;
+    expect(result.pass).toBe(false);
+    expect(result.error).toMatch(/non-zero code 1/);
+  });
+
+  it("returns error when arecord is terminated by signal even with partial PCM", async () => {
+    const proc = new FakeProcess({ hasStdout: true });
+    const { spawn: spawnMock } = await import("child_process");
+    (spawnMock as ReturnType<typeof vi.fn>).mockImplementationOnce(() => proc);
+
+    const promise = testCapture("hw:2,0");
+
+    const pcm = Buffer.alloc(4);
+    pcm.writeInt16LE(20000, 0);
+    proc.stdout!.emit("data", pcm);
+    proc.emit("exit", null, "SIGTERM");
+    proc.emit("close");
+
+    const result = await promise;
+    expect(result.pass).toBe(false);
+    expect(result.error).toMatch(/signal SIGTERM/);
+  });
+
+  it("returns error when arecord exits with no data (empty buffer)", async () => {
+    const proc = new FakeProcess({ hasStdout: true });
+    const { spawn: spawnMock } = await import("child_process");
+    (spawnMock as ReturnType<typeof vi.fn>).mockImplementationOnce(() => proc);
+
+    const promise = testCapture("hw:2,0");
+
+    // No data emitted
+    proc.emit("exit", 0, null);
+    proc.emit("close");
+
+    const result = await promise;
+    expect(result.pass).toBe(false);
+    expect(result.error).toMatch(/No PCM data/);
+  });
+
+  it("returns error when arecord emits ENOENT process error", async () => {
+    const proc = new FakeProcess({ hasStdout: true });
+    const { spawn: spawnMock } = await import("child_process");
+    (spawnMock as ReturnType<typeof vi.fn>).mockImplementationOnce(() => proc);
+
+    const promise = testCapture("hw:2,0");
+
+    const err = Object.assign(new Error("spawn arecord ENOENT"), { code: "ENOENT" });
+    proc.emit("error", err);
+
+    const result = await promise;
+    expect(result.pass).toBe(false);
+    expect(result.error).toMatch(/arecord not found/);
+  });
+
+  it("returns error immediately when live capture is already running", async () => {
+    // Start live capture
+    const liveProc = new FakeProcess({ hasStdout: true });
+    const playProc = new FakeProcess({ hasStdin: true });
+    const { spawn: spawnMock } = await import("child_process");
+    (spawnMock as ReturnType<typeof vi.fn>)
+      .mockImplementationOnce(() => liveProc)
+      .mockImplementationOnce(() => playProc);
+
+    start("hw:0,0");
+    await tick();
+    expect(isRunning()).toBe(true);
+
+    // testCapture should immediately reject — no spawn needed
+    const result = await testCapture("hw:2,0");
+    expect(result.pass).toBe(false);
+    expect(result.error).toMatch(/Live capture is active/);
+
+    // Clean up live capture
+    setAutoReconnect(false);
+    stop();
+    await tick();
+    setAutoReconnect(true);
+  });
+
+  it("rejects a second concurrent testCapture call immediately", async () => {
+    const proc = new FakeProcess({ hasStdout: true });
+    const { spawn: spawnMock } = await import("child_process");
+    (spawnMock as ReturnType<typeof vi.fn>).mockImplementationOnce(() => proc);
+
+    // Start first test — don't emit events yet so it stays in progress
+    const first = testCapture("hw:2,0");
+
+    // isTestCapturing should now be true
+    expect(isTestCapturing()).toBe(true);
+
+    // Second test should be rejected immediately
+    const second = await testCapture("hw:2,0");
+    expect(second.pass).toBe(false);
+    expect(second.error).toMatch(/already in progress/);
+
+    // Resolve the first one
+    proc.stdout!.emit("data", Buffer.alloc(4, 0));
+    proc.emit("exit", 0, null);
+    proc.emit("close");
+    await first;
+
+    expect(isTestCapturing()).toBe(false);
+  });
+
+  it("restores autoReconnect after a test completes", async () => {
+    const proc = new FakeProcess({ hasStdout: true });
+    const { spawn: spawnMock } = await import("child_process");
+    (spawnMock as ReturnType<typeof vi.fn>).mockImplementationOnce(() => proc);
+
+    setAutoReconnect(true); // ensure it starts enabled
+    const promise = testCapture("hw:2,0");
+
+    proc.stdout!.emit("data", Buffer.alloc(4, 0));
+    proc.emit("exit", 0, null);
+    proc.emit("close");
+    await promise;
+
+    // autoReconnect should be back to true
     expect(getStatus().autoReconnect).toBe(true);
   });
 });

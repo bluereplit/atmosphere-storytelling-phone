@@ -8,7 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   Mic, MicOff, Volume2, VolumeX, Waves, ChevronDown, ChevronRight,
   AlertTriangle, CheckCircle2, XCircle, Radio, Copy, Check,
-  Bluetooth, MonitorSpeaker, RefreshCw,
+  Bluetooth, MonitorSpeaker, RefreshCw, FlaskConical,
 } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -113,15 +113,34 @@ async function fetchVoiceSource(): Promise<{ source: VoiceSource; captureStatus:
   }
 }
 
-async function postVoiceSource(mode: VoiceSourceMode, device?: string): Promise<{ source: VoiceSource; captureStatus: LocalCaptureStatus } | null> {
+interface VoiceSourceResult {
+  source: VoiceSource;
+  captureStatus: LocalCaptureStatus;
+}
+
+interface VoiceSourceError {
+  error: string;
+}
+
+async function postVoiceSource(
+  mode: VoiceSourceMode,
+  device?: string
+): Promise<VoiceSourceResult | VoiceSourceError | null> {
   try {
     const res = await fetch(`${BASE}/api/voice/source`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode, device: device ?? null }),
     });
-    if (!res.ok) return null;
-    return (await res.json()) as { source: VoiceSource; captureStatus: LocalCaptureStatus };
+    if (!res.ok) {
+      let msg = `Server error (${res.status})`;
+      try {
+        const body = await res.json() as { error?: string };
+        if (typeof body.error === "string" && body.error) msg = body.error;
+      } catch { /* ignore */ }
+      return { error: msg };
+    }
+    return (await res.json()) as VoiceSourceResult;
   } catch {
     return null;
   }
@@ -149,6 +168,35 @@ async function postAutoReconnect(enabled: boolean): Promise<LocalCaptureStatus |
     return data.captureStatus;
   } catch {
     return null;
+  }
+}
+
+interface TestCaptureResult {
+  pass: boolean;
+  peakLevel: number;
+  durationMs: number;
+  error: string | null;
+}
+
+async function postTestCapture(device: string): Promise<TestCaptureResult> {
+  try {
+    const res = await fetch(`${BASE}/api/voice/test-capture`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device }),
+    });
+    if (!res.ok) {
+      let msg = `Server error (${res.status})`;
+      try {
+        const body = await res.json() as { error?: string };
+        if (typeof body.error === "string" && body.error) msg = body.error;
+      } catch { /* ignore parse failure */ }
+      return { pass: false, peakLevel: 0, durationMs: 0, error: msg };
+    }
+    return (await res.json()) as TestCaptureResult;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Request failed";
+    return { pass: false, peakLevel: 0, durationMs: 0, error: msg };
   }
 }
 
@@ -212,6 +260,8 @@ export function StorytellerVoice() {
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [captureStatus, setCaptureStatus] = useState<LocalCaptureStatus | null>(null);
   const [devicesLoading, setDevicesLoading] = useState(false);
+  const [testRunning, setTestRunning] = useState(false);
+  const [testResult, setTestResult] = useState<TestCaptureResult | null>(null);
 
   const sessionRef = useRef<MicSession | null>(null);
   const gainRef = useRef(gain);
@@ -440,6 +490,7 @@ export function StorytellerVoice() {
     setSourceMode(mode);
     setError(null);
     setCaptureStatus(null);
+    setTestResult(null);
 
     if (mode === "local") {
       await loadInputDevices();
@@ -447,7 +498,7 @@ export function StorytellerVoice() {
     } else {
       // Switching back to browser: ensure local capture is stopped
       const result = await postVoiceSource("browser");
-      if (result) setCaptureStatus(result.captureStatus);
+      if (result && !("error" in result)) setCaptureStatus(result.captureStatus);
     }
   }, [sourceMode, micEnabled, stopSession, loadInputDevices]);
 
@@ -456,11 +507,18 @@ export function StorytellerVoice() {
     setError(null);
 
     const result = await postVoiceSource(checked ? "local" : "browser", checked ? selectedDevice : undefined);
-    if (result) {
-      setCaptureStatus(result.captureStatus);
-      if (result.captureStatus.error) {
-        setError(`Capture error: ${result.captureStatus.error}`);
-      }
+    if (!result) {
+      setError("Failed to update voice source");
+      return;
+    }
+    if ("error" in result) {
+      setError(result.error);
+      return;
+    }
+
+    setCaptureStatus(result.captureStatus);
+    if (result.captureStatus.error) {
+      setError(`Capture error: ${result.captureStatus.error}`);
     }
 
     if (checked) {
@@ -474,14 +532,17 @@ export function StorytellerVoice() {
   const handleDeviceChange = useCallback(async (deviceId: string) => {
     setSelectedDevice(deviceId);
     setError(null);
+    setTestResult(null);
     // If currently capturing, restart with the new device
     if (micEnabled && sourceMode === "local") {
       const result = await postVoiceSource("local", deviceId);
-      if (result) {
+      if (result && !("error" in result)) {
         setCaptureStatus(result.captureStatus);
         if (result.captureStatus.error) {
           setError(`Capture error: ${result.captureStatus.error}`);
         }
+      } else if (result && "error" in result) {
+        setError(result.error);
       }
     }
   }, [micEnabled, sourceMode]);
@@ -520,6 +581,15 @@ export function StorytellerVoice() {
     const updated = await postAutoReconnect(checked);
     if (updated) setCaptureStatus(updated);
   }, []);
+
+  const handleTestCapture = useCallback(async () => {
+    if (!selectedDevice) return;
+    setTestRunning(true);
+    setTestResult(null);
+    const result = await postTestCapture(selectedDevice);
+    setTestResult(result);
+    setTestRunning(false);
+  }, [selectedDevice]);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -772,9 +842,9 @@ export function StorytellerVoice() {
                     <button
                       type="button"
                       onClick={loadInputDevices}
-                      disabled={devicesLoading}
+                      disabled={devicesLoading || testRunning}
                       className="text-muted-foreground/60 hover:text-muted-foreground transition-colors"
-                      title="Refresh device list"
+                      title={testRunning ? "Wait for test to finish" : "Refresh device list"}
                     >
                       <RefreshCw className={`w-3 h-3 ${devicesLoading ? "animate-spin" : ""}`} />
                     </button>
@@ -808,6 +878,88 @@ export function StorytellerVoice() {
                   )}
                 </div>
 
+                {/* Test capture button + result */}
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 w-full"
+                    onClick={handleTestCapture}
+                    disabled={inputDevices.length === 0 || !selectedDevice || testRunning || localCapturing || localReconnecting}
+                    title={
+                      inputDevices.length === 0 ? "No capture device available"
+                      : localCapturing || localReconnecting ? "Stop capture before running a test"
+                      : "Record 3 seconds and check for audio signal"
+                    }
+                  >
+                    {testRunning
+                      ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      : <FlaskConical className="w-3.5 h-3.5" />}
+                    {testRunning ? "Recording 3 s…" : "Test Capture"}
+                  </Button>
+
+                  {testResult !== null && !testRunning && (
+                    <div className={`flex items-center gap-2 text-xs font-mono px-2 py-1.5 rounded border ${
+                      testResult.error
+                        ? "bg-red-500/10 border-red-500/30 text-red-300"
+                        : testResult.pass
+                          ? "bg-green-500/10 border-green-500/20 text-green-300"
+                          : "bg-amber-500/10 border-amber-500/30 text-amber-300"
+                    }`}>
+                      {testResult.error ? (
+                        <>
+                          <XCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
+                          <span className="flex-1 truncate" title={testResult.error}>{testResult.error}</span>
+                        </>
+                      ) : testResult.pass ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-green-400" />
+                          <span className="uppercase tracking-widest text-[10px] text-green-400/80">Pass</span>
+                          <span className="flex-1" />
+                          <span className="text-green-300/70 text-[10px]">
+                            peak {Math.round(testResult.peakLevel * 100)}%
+                          </span>
+                          <div className="flex items-center gap-0.5 ml-1">
+                            {Array.from({ length: 8 }).map((_, i) => {
+                              const threshold = (i + 1) / 8;
+                              const active = testResult.peakLevel >= threshold;
+                              const isHigh = i >= 6;
+                              const isMid = i >= 4;
+                              return (
+                                <div
+                                  key={i}
+                                  className={`w-1.5 rounded-sm ${
+                                    active
+                                      ? isHigh ? "bg-red-500" : isMid ? "bg-yellow-400" : "bg-green-500"
+                                      : "bg-muted/30"
+                                  }`}
+                                  style={{ height: `${8 + i * 1.5}px` }}
+                                />
+                              );
+                            })}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                          <span className="uppercase tracking-widest text-[10px] text-amber-400/80">Silent</span>
+                          <span className="flex-1" />
+                          <span className="text-amber-300/70 text-[10px]">peak {Math.round(testResult.peakLevel * 100)}%</span>
+                          <div className="flex items-center gap-0.5 ml-1">
+                            {Array.from({ length: 8 }).map((_, i) => (
+                              <div
+                                key={i}
+                                className="w-1.5 rounded-sm bg-muted/30"
+                                style={{ height: `${8 + i * 1.5}px` }}
+                              />
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Enable/disable local capture */}
                 <div className="flex items-center gap-3">
                   <Button
@@ -815,8 +967,12 @@ export function StorytellerVoice() {
                     size="sm"
                     className={`gap-2 ${micEnabled ? "bg-blue-600 hover:bg-blue-700 text-white border-blue-500" : ""}`}
                     onClick={() => handleLocalMicToggle(!micEnabled)}
-                    disabled={inputDevices.length === 0 || !selectedDevice}
-                    title={inputDevices.length === 0 ? "No capture device available" : undefined}
+                    disabled={inputDevices.length === 0 || !selectedDevice || testRunning}
+                    title={
+                      inputDevices.length === 0 ? "No capture device available"
+                      : testRunning ? "Wait for the test to finish"
+                      : undefined
+                    }
                   >
                     <Bluetooth className="w-3.5 h-3.5" />
                     {micEnabled ? "Capturing" : "Start Capture"}
@@ -884,6 +1040,7 @@ export function StorytellerVoice() {
                     <Switch
                       checked={localAutoReconnect}
                       onCheckedChange={handleAutoReconnectToggle}
+                      disabled={testRunning}
                       aria-label="Auto-reconnect Bluetooth mic"
                     />
                   </div>

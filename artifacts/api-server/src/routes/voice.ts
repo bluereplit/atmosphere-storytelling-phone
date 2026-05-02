@@ -11,6 +11,9 @@ import {
   stop as stopLocalCapture,
   getStatus as getLocalCaptureStatus,
   setAutoReconnect,
+  testCapture,
+  isRunning as isLocalCaptureRunning,
+  isTestCapturing,
 } from "../lib/localMicRelay.js";
 
 export function makeVoiceRouter(
@@ -71,6 +74,11 @@ export function makeVoiceRouter(
       return;
     }
 
+    if (mode === "local" && isTestCapturing()) {
+      res.status(409).json({ error: "A test capture is in progress — wait for it to finish before starting live capture" });
+      return;
+    }
+
     const voiceSourceMode = mode as VoiceSourceMode;
 
     if (voiceSourceMode === "local") {
@@ -99,6 +107,20 @@ export function makeVoiceRouter(
   router.post("/voice/relay-stats/reset", (_req: Request, res: Response) => {
     resetVoiceRelayStats();
     res.json({ ok: true, stats: getVoiceRelayStats() });
+  });
+
+  router.post("/voice/test-capture", async (req: Request, res: Response) => {
+    const { device } = req.body as { device?: unknown };
+    if (typeof device !== "string" || device.trim() === "") {
+      res.status(400).json({ error: "device is required" });
+      return;
+    }
+    if (isLocalCaptureRunning()) {
+      res.status(409).json({ error: "Local capture is already running — stop it before running a test" });
+      return;
+    }
+    const result = await testCapture(device.trim());
+    res.json(result);
   });
 
   router.post("/voice/auto-reconnect", (req: Request, res: Response) => {
