@@ -1,0 +1,47 @@
+name: SuperCollider Audio Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  sc-audio-test:
+    name: Run SynthDef test suite (headless)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install SuperCollider and JACK
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            supercollider-common \
+            supercollider-language \
+            supercollider-server \
+            jackd2 \
+            xvfb
+
+      - name: Start JACK with dummy (null) backend
+        run: |
+          # --no-realtime is required inside GitHub Actions VMs where
+          # the kernel does not grant real-time scheduling privileges.
+          # The dummy driver creates a virtual audio device with no
+          # physical hardware dependency.
+          jackd --no-realtime -d dummy -r 44100 -p 1024 &
+          # Wait up to 10 s for jackd to become ready, then confirm it is alive
+          for i in $(seq 1 10); do
+            jack_lsp &>/dev/null && break
+            sleep 1
+          done
+          jack_lsp || { echo "ERROR: jackd did not start"; exit 1; }
+
+      - name: Run SynthDef audio test suite
+        run: |
+          # xvfb-run provides a headless X display so sclang's Qt layer
+          # initialises cleanly even without a physical monitor.
+          # timeout(1) caps the entire run at 900 s; the test script
+          # exits 0 on full pass and 1 on any failure via 0.exit / 1.exit.
+          xvfb-run --auto-servernum \
+            timeout 900 sclang artifacts/api-server/sc/test_all.scd
