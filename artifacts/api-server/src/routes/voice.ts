@@ -3,6 +3,7 @@ import { execSync } from "child_process";
 import { startVoice, stopVoice, setVoiceParams, getVoiceState } from "../lib/stateManager.js";
 import { saveShow } from "../lib/showConfig.js";
 import type { ShowConfig } from "../lib/themes.config.js";
+import { getVoiceRelayStats, resetVoiceRelayStats } from "../lib/voiceRelay.js";
 
 export function makeVoiceRouter(
   getShow: () => ShowConfig,
@@ -33,6 +34,15 @@ export function makeVoiceRouter(
 
     const available = moduleLoaded && deviceAccessible;
     res.json({ available, moduleLoaded, deviceAccessible, error });
+  });
+
+  router.get("/voice/relay-stats", (_req: Request, res: Response) => {
+    res.json(getVoiceRelayStats());
+  });
+
+  router.post("/voice/relay-stats/reset", (_req: Request, res: Response) => {
+    resetVoiceRelayStats();
+    res.json({ ok: true, stats: getVoiceRelayStats() });
   });
 
   router.post("/voice/start", (_req: Request, res: Response) => {

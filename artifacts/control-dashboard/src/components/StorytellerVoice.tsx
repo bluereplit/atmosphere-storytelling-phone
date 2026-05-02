@@ -5,7 +5,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Mic, MicOff, Volume2, VolumeX, Waves, ChevronDown, ChevronRight, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { Mic, MicOff, Volume2, VolumeX, Waves, ChevronDown, ChevronRight, AlertTriangle, CheckCircle2, XCircle, Radio } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -42,6 +42,30 @@ async function fetchLoopbackStatus(): Promise<LoopbackStatus | null> {
   }
 }
 
+interface RelayStats {
+  receivedFrames: number;
+  droppedFrames: number;
+  bufferedChunks: number;
+}
+
+async function fetchRelayStats(): Promise<RelayStats | null> {
+  try {
+    const res = await fetch(`${BASE}/api/voice/relay-stats`);
+    if (!res.ok) return null;
+    return (await res.json()) as RelayStats;
+  } catch {
+    return null;
+  }
+}
+
+async function resetRelayStats(): Promise<void> {
+  try {
+    await fetch(`${BASE}/api/voice/relay-stats/reset`, { method: "POST" });
+  } catch {
+    // non-critical
+  }
+}
+
 interface MicSession {
   audioCtx: AudioContext;
   workletNode: AudioWorkletNode;
@@ -64,6 +88,7 @@ export function StorytellerVoice() {
   const [error, setError] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [loopbackStatus, setLoopbackStatus] = useState<LoopbackStatus | null>(null);
+  const [relayStats, setRelayStats] = useState<RelayStats | null>(null);
 
   const sessionRef = useRef<MicSession | null>(null);
   const gainRef = useRef(gain);
@@ -83,6 +108,25 @@ export function StorytellerVoice() {
   useEffect(() => {
     fetchLoopbackStatus().then(setLoopbackStatus);
   }, []);
+
+  useEffect(() => {
+    if (!micEnabled || !wsConnected) {
+      setRelayStats(null);
+      return;
+    }
+    let cancelled = false;
+    const poll = () => {
+      fetchRelayStats().then((s) => {
+        if (!cancelled) setRelayStats(s);
+      });
+    };
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [micEnabled, wsConnected]);
 
   const sendParams = useCallback((g: number, r: number) => {
     if (paramDebounceRef.current) clearTimeout(paramDebounceRef.current);
@@ -109,6 +153,8 @@ export function StorytellerVoice() {
 
   const startSession = useCallback(async () => {
     setError(null);
+    setRelayStats(null);
+    await resetRelayStats();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
 
@@ -337,6 +383,34 @@ export function StorytellerVoice() {
                 <span className="text-xs font-mono text-muted-foreground">Mute</span>
               </div>
             </div>
+
+            {relayStats !== null && (
+              <div className={`flex items-center gap-2 text-xs font-mono px-2 py-1.5 rounded border ${
+                relayStats.droppedFrames > 0
+                  ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
+                  : "bg-green-500/10 border-green-500/20 text-green-400"
+              }`}>
+                <Radio className="w-3 h-3 shrink-0" />
+                <span className="text-muted-foreground/80 uppercase tracking-widest text-[10px]">Relay</span>
+                <span className="flex-1" />
+                <span title="Frames delivered to aplay">
+                  {(relayStats.receivedFrames - relayStats.droppedFrames).toLocaleString()} delivered
+                </span>
+                {relayStats.droppedFrames > 0 && (
+                  <>
+                    <span className="text-muted-foreground/50">/</span>
+                    <span className="text-amber-400" title="Frames dropped due to back-pressure">
+                      {relayStats.droppedFrames.toLocaleString()} dropped
+                    </span>
+                  </>
+                )}
+                {relayStats.bufferedChunks > 0 && (
+                  <span className="text-muted-foreground/70" title="Chunks currently buffered">
+                    ({relayStats.bufferedChunks} buffered)
+                  </span>
+                )}
+              </div>
+            )}
 
             <div className="space-y-3">
               <div className="space-y-2">
