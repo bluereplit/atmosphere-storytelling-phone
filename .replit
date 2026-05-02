@@ -26,11 +26,11 @@ args = "sc-syntax"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "API Server"
+args = "Control Dashboard"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Control Dashboard"
+args = "API Server"
 
 [[workflows.workflow]]
 name = "artifacts/atmosphere-display: Visual Display"
@@ -55,28 +55,28 @@ args = "bash scripts/check_sc_syntax.sh"
 isValidation = true
 
 [[workflows.workflow]]
-name = "API Server"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
-waitForPort = 8080
-
-[workflows.workflow.metadata]
-outputType = "console"
-
-[[workflows.workflow]]
 name = "Control Dashboard"
 author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "PORT=20266 BASE_PATH=/ pnpm --filter @workspace/control-dashboard run dev"
 waitForPort = 20266
 
+[[workflows.workflow]]
+name = "API Server"
+author = "agent"
+
 [workflows.workflow.metadata]
-outputType = "webview"
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
+waitForPort = 8080
 
 [agent]
 stack = "PNPM_WORKSPACE"

@@ -140,7 +140,7 @@ export function StorytellerVoice() {
   }, []);
 
   useEffect(() => {
-    if (!micEnabled || !wsConnected) {
+    if (!open) {
       setRelayStats(null);
       return;
     }
@@ -156,7 +156,7 @@ export function StorytellerVoice() {
       cancelled = true;
       clearInterval(id);
     };
-  }, [micEnabled, wsConnected]);
+  }, [open]);
 
   const sendParams = useCallback((g: number, r: number) => {
     if (paramDebounceRef.current) clearTimeout(paramDebounceRef.current);
