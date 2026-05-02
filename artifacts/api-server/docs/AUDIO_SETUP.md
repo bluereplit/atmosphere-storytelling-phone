@@ -180,6 +180,20 @@ Or use the `VOICE_LOOPBACK_DEVICE` environment variable to change which ALSA dev
 export VOICE_LOOPBACK_DEVICE="hw:Loopback,0"   # default
 ```
 
+### Tuning the voice relay ring buffer
+
+The relay holds unplayed PCM chunks in a ring buffer while `aplay` stdin is draining. You can adjust the buffer capacity without redeploying:
+
+```bash
+# VOICE_RING_CAPACITY — number of PCM chunks to buffer under back-pressure
+# Default: 100 (~9 s at a 4096-sample chunk / 44100 Hz)
+# Recommended range: 10–1000
+# Increase on slow Pi hardware or high-latency networks; decrease on very constrained RAM.
+export VOICE_RING_CAPACITY=100
+```
+
+The server validates this value at startup and logs a warning if it is outside the 10–1000 range.
+
 ### Install alsa-utils
 
 `aplay` must be installed on the Pi:
@@ -209,6 +223,8 @@ WorkingDirectory=/home/pi/workspace
 Environment=PORT=3000
 Environment=OSC_PORT=57120
 Environment=NODE_ENV=production
+# Optional: tune the voice relay ring buffer (default 100, range 10-1000)
+# Environment=VOICE_RING_CAPACITY=100
 ExecStart=/usr/bin/node --enable-source-maps artifacts/api-server/dist/index.mjs
 Restart=on-failure
 RestartSec=5

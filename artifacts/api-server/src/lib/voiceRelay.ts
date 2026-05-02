@@ -25,6 +25,34 @@ const LOOPBACK_DEVICE = process.env["VOICE_LOOPBACK_DEVICE"] ?? "hw:Loopback,0";
 const SAMPLE_RATE = 44100;
 
 // ---------------------------------------------------------------------------
+// Ring buffer capacity — configurable via VOICE_RING_CAPACITY env var
+// ---------------------------------------------------------------------------
+
+export function resolveRingCapacity(): number {
+  const raw = process.env["VOICE_RING_CAPACITY"];
+  if (raw === undefined || raw === "") {
+    return 100;
+  }
+  if (!/^\d+$/.test(raw.trim())) {
+    logger.warn(
+      { VOICE_RING_CAPACITY: raw },
+      "VOICE_RING_CAPACITY is not a valid integer — using default of 100"
+    );
+    return 100;
+  }
+  const parsed = parseInt(raw.trim(), 10);
+  if (parsed < 10 || parsed > 1000) {
+    logger.warn(
+      { VOICE_RING_CAPACITY: parsed },
+      "VOICE_RING_CAPACITY is outside the recommended range (10–1000) — value will be used as-is"
+    );
+  }
+  return parsed;
+}
+
+const RING_CAPACITY = resolveRingCapacity();
+
+// ---------------------------------------------------------------------------
 // Loopback pre-flight check
 // ---------------------------------------------------------------------------
 
@@ -68,13 +96,6 @@ function checkLoopbackAvailable(): { available: boolean; reason: string } {
 
   return { available: true, reason: "" };
 }
-
-/**
- * Maximum number of PCM chunks held in the ring buffer while aplay stdin
- * is draining.  At a typical 4096-sample chunk (~93 ms) this is ~9 seconds
- * of audio, which is more than enough headroom without growing unbounded.
- */
-const RING_CAPACITY = 100;
 
 // ---------------------------------------------------------------------------
 // Stats – accessible via getVoiceRelayStats() for the level-meter endpoint
@@ -317,7 +338,7 @@ export function initVoiceWebSocket(server: Server): void {
     });
   });
 
-  logger.info("Voice WebSocket relay initialized at /ws/voice");
+  logger.info({ ringCapacity: RING_CAPACITY }, "Voice WebSocket relay initialized at /ws/voice");
 }
 
 export function closeVoiceWebSocket(): void {

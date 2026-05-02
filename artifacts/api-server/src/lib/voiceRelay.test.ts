@@ -7,7 +7,7 @@
  */
 
 import { EventEmitter } from "events";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Fake stdin – a minimal writable-stream-like object we fully control.
@@ -70,7 +70,9 @@ import {
   writeChunk,
   getVoiceRelayStats,
   resetVoiceRelayStats,
+  resolveRingCapacity,
 } from "./voiceRelay.js";
+import { logger } from "./logger.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -213,5 +215,68 @@ describe("voiceRelay backpressure", () => {
     expect(stats.receivedFrames).toBe(3);
     expect(stats.droppedFrames).toBe(0);
     expect(stats.bufferedChunks).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// VOICE_RING_CAPACITY env var — resolveRingCapacity() unit tests
+// ---------------------------------------------------------------------------
+
+describe("resolveRingCapacity", () => {
+  afterEach(() => {
+    delete process.env["VOICE_RING_CAPACITY"];
+    vi.clearAllMocks();
+  });
+
+  it("returns 100 when VOICE_RING_CAPACITY is not set", () => {
+    delete process.env["VOICE_RING_CAPACITY"];
+    expect(resolveRingCapacity()).toBe(100);
+  });
+
+  it("returns 100 when VOICE_RING_CAPACITY is an empty string", () => {
+    process.env["VOICE_RING_CAPACITY"] = "";
+    expect(resolveRingCapacity()).toBe(100);
+  });
+
+  it("returns the parsed value for a valid in-range integer", () => {
+    process.env["VOICE_RING_CAPACITY"] = "250";
+    expect(resolveRingCapacity()).toBe(250);
+    expect((logger.warn as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
+  });
+
+  it("accepts boundary values 10 and 1000 without a warning", () => {
+    process.env["VOICE_RING_CAPACITY"] = "10";
+    expect(resolveRingCapacity()).toBe(10);
+    expect((logger.warn as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
+
+    vi.clearAllMocks();
+
+    process.env["VOICE_RING_CAPACITY"] = "1000";
+    expect(resolveRingCapacity()).toBe(1000);
+    expect((logger.warn as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
+  });
+
+  it("returns 100 and warns for a non-integer string", () => {
+    process.env["VOICE_RING_CAPACITY"] = "abc";
+    expect(resolveRingCapacity()).toBe(100);
+    expect(logger.warn).toHaveBeenCalledOnce();
+  });
+
+  it("returns 100 and warns for a partially-numeric string like '100abc'", () => {
+    process.env["VOICE_RING_CAPACITY"] = "100abc";
+    expect(resolveRingCapacity()).toBe(100);
+    expect(logger.warn).toHaveBeenCalledOnce();
+  });
+
+  it("uses the value but warns when below the recommended minimum (< 10)", () => {
+    process.env["VOICE_RING_CAPACITY"] = "5";
+    expect(resolveRingCapacity()).toBe(5);
+    expect(logger.warn).toHaveBeenCalledOnce();
+  });
+
+  it("uses the value but warns when above the recommended maximum (> 1000)", () => {
+    process.env["VOICE_RING_CAPACITY"] = "2000";
+    expect(resolveRingCapacity()).toBe(2000);
+    expect(logger.warn).toHaveBeenCalledOnce();
   });
 });
