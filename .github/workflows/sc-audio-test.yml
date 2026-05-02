@@ -13,15 +13,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install SuperCollider and JACK
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            supercollider-common \
-            supercollider-language \
-            supercollider-server \
-            jackd2 \
+      - name: Cache SuperCollider and JACK apt packages
+        uses: awalsh128/cache-apt-pkgs-action@v1.4.2
+        with:
+          packages: >-
+            supercollider-common
+            supercollider-language
+            supercollider-server
+            jackd2
             xvfb
+          version: 1.0
 
       - name: Start JACK with dummy (null) backend
         run: |
