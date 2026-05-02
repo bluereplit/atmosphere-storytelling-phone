@@ -22,6 +22,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronRight, Activity, Volume2, Waves } from "lucide-react";
 import { StorytellerVoice } from "./StorytellerVoice";
+import { PreShowChecklist } from "./PreShowChecklist";
 
 const ATTRIBUTE_GROUPS: Record<string, string[]> = {
   "Nature": ["crickets", "birds", "wind", "ocean_waves", "rain", "frogs", "stream", "waterfall"],
@@ -414,6 +415,8 @@ export function LiveControls() {
 
   return (
     <div className="space-y-6">
+      <PreShowChecklist />
+
       <Card className="border-border/50 bg-card/50">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-mono tracking-widest text-muted-foreground uppercase">
