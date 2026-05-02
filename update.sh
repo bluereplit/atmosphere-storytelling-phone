@@ -12,8 +12,9 @@
 #    1. Pulls the latest code from the current git remote/branch
 #    2. Shows a brief summary of what changed
 #    3. Runs pnpm install --frozen-lockfile
-#    4. Rebuilds the API server
-#    5. Restarts atmosphere-backend and atmosphere-display systemd services
+#    4. Re-installs Python packages if requirements.txt changed
+#    5. Rebuilds the API server
+#    6. Restarts atmosphere-backend and atmosphere-display systemd services
 # =============================================================================
 
 set -euo pipefail
@@ -42,7 +43,7 @@ cd "$REPO_DIR"
 
 echo ""
 info "============================================================"
-info "  Step 1/5 — Pull latest code"
+info "  Step 1/6 — Pull latest code"
 info "============================================================"
 
 BEFORE_SHA="$(git rev-parse HEAD)"
@@ -75,7 +76,7 @@ fi
 
 echo ""
 info "============================================================"
-info "  Step 2/5 — SuperCollider syntax check"
+info "  Step 2/6 — SuperCollider syntax check"
 info "============================================================"
 
 info "Running SuperCollider syntax check …"
@@ -86,7 +87,7 @@ success "SuperCollider syntax check passed."
 
 echo ""
 info "============================================================"
-info "  Step 3/5 — Install Node.js dependencies"
+info "  Step 3/6 — Install Node.js dependencies"
 info "============================================================"
 
 info "Running pnpm install --frozen-lockfile …"
@@ -95,7 +96,23 @@ success "Node.js dependencies up to date."
 
 echo ""
 info "============================================================"
-info "  Step 4/5 — Rebuild API server"
+info "  Step 4/6 — Refresh Python packages"
+info "============================================================"
+
+if [[ "$BEFORE_SHA" == "$AFTER_SHA" ]]; then
+    info "No new commits — skipping Python package refresh."
+elif git diff --name-only "${BEFORE_SHA}" "${AFTER_SHA}" | grep -q '^requirements\.txt$'; then
+    info "requirements.txt changed — running pip3 install …"
+    pip3 install --break-system-packages -r "$REPO_DIR/requirements.txt" || \
+        pip3 install -r "$REPO_DIR/requirements.txt"
+    success "Python packages updated."
+else
+    info "requirements.txt unchanged — skipping Python package refresh."
+fi
+
+echo ""
+info "============================================================"
+info "  Step 5/6 — Rebuild API server"
 info "============================================================"
 
 info "Building API server …"
@@ -104,7 +121,7 @@ success "API server built."
 
 echo ""
 info "============================================================"
-info "  Step 5/5 — Restart services"
+info "  Step 6/6 — Restart services"
 info "============================================================"
 
 BACKEND_ACTIVE="$(systemctl is-active atmosphere-backend 2>/dev/null || true)"
