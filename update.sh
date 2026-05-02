@@ -42,7 +42,7 @@ cd "$REPO_DIR"
 
 echo ""
 info "============================================================"
-info "  Step 1/4 — Pull latest code"
+info "  Step 1/5 — Pull latest code"
 info "============================================================"
 
 BEFORE_SHA="$(git rev-parse HEAD)"
@@ -75,7 +75,18 @@ fi
 
 echo ""
 info "============================================================"
-info "  Step 2/4 — Install Node.js dependencies"
+info "  Step 2/5 — SuperCollider syntax check"
+info "============================================================"
+
+info "Running SuperCollider syntax check …"
+if ! bash "$REPO_DIR/scripts/check_sc_syntax.sh"; then
+    error "SuperCollider syntax check failed — deploy aborted. Fix the errors above and re-run update.sh."
+fi
+success "SuperCollider syntax check passed."
+
+echo ""
+info "============================================================"
+info "  Step 3/5 — Install Node.js dependencies"
 info "============================================================"
 
 info "Running pnpm install --frozen-lockfile …"
@@ -84,7 +95,7 @@ success "Node.js dependencies up to date."
 
 echo ""
 info "============================================================"
-info "  Step 3/4 — Rebuild API server"
+info "  Step 4/5 — Rebuild API server"
 info "============================================================"
 
 info "Building API server …"
@@ -93,7 +104,7 @@ success "API server built."
 
 echo ""
 info "============================================================"
-info "  Step 4/4 — Restart services"
+info "  Step 5/5 — Restart services"
 info "============================================================"
 
 BACKEND_ACTIVE="$(systemctl is-active atmosphere-backend 2>/dev/null || true)"
@@ -136,6 +147,9 @@ echo -e "${GREEN}  Update complete!${NC}"
 echo -e "${GREEN}============================================================${NC}"
 echo ""
 echo "  Version: $(git rev-parse --short HEAD) ($(git log -1 --format='%ci' | cut -d' ' -f1))"
+echo ""
+echo "  Run full hardware validation on this Pi (requires a live audio server):"
+echo "       sclang artifacts/api-server/sc/test_all.scd"
 echo ""
 echo "  View live logs:"
 echo "       journalctl -u atmosphere-backend -f"

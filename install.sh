@@ -43,7 +43,7 @@ info "Installing for user: $INSTALL_USER (home: $INSTALL_HOME)"
 
 echo ""
 info "============================================================"
-info "  Step 1/7 — System packages"
+info "  Step 1/8 — System packages"
 info "============================================================"
 
 $SUDO apt-get update -qq
@@ -70,7 +70,18 @@ success "System packages installed."
 
 echo ""
 info "============================================================"
-info "  Step 2/7 — Node.js 20"
+info "  Step 2/8 — SuperCollider syntax check"
+info "============================================================"
+
+info "Running SuperCollider syntax check …"
+if ! bash "$REPO_DIR/scripts/check_sc_syntax.sh"; then
+    error "SuperCollider syntax check failed — deploy aborted. Fix the errors above and re-run install.sh."
+fi
+success "SuperCollider syntax check passed."
+
+echo ""
+info "============================================================"
+info "  Step 3/8 — Node.js 20"
 info "============================================================"
 
 if command -v node &>/dev/null; then
@@ -92,7 +103,7 @@ fi
 
 echo ""
 info "============================================================"
-info "  Step 3/7 — pnpm"
+info "  Step 4/8 — pnpm"
 info "============================================================"
 
 if command -v pnpm &>/dev/null; then
@@ -105,7 +116,7 @@ fi
 
 echo ""
 info "============================================================"
-info "  Step 4/7 — Node.js dependencies & build"
+info "  Step 5/8 — Node.js dependencies & build"
 info "============================================================"
 
 cd "$REPO_DIR"
@@ -120,7 +131,7 @@ success "Node.js dependencies installed and API server built."
 
 echo ""
 info "============================================================"
-info "  Step 5/7 — Python dependencies"
+info "  Step 6/8 — Python dependencies"
 info "============================================================"
 
 info "Installing Python packages from requirements.txt …"
@@ -131,7 +142,7 @@ success "Python dependencies installed."
 
 echo ""
 info "============================================================"
-info "  Step 6/7 — ALSA loopback service"
+info "  Step 7/8 — ALSA loopback service"
 info "============================================================"
 
 LOOPBACK_SERVICE="/etc/systemd/system/alsa-loopback.service"
@@ -162,7 +173,7 @@ success "alsa-loopback service installed and enabled."
 
 echo ""
 info "============================================================"
-info "  Step 7/7 — systemd unit files"
+info "  Step 8/8 — systemd unit files"
 info "============================================================"
 
 # ── atmosphere-backend.service ────────────────────────────────────────────────
@@ -247,6 +258,9 @@ echo "          $DISPLAY_SERVICE for KMS/DRM / Pi OS Lite)"
 echo ""
 echo "  4. Open the control dashboard from any browser on the same network:"
 echo "       http://<pi-ip-address>:8080"
+echo ""
+echo "  5. Run full hardware validation on this Pi (requires a live audio server):"
+echo "       sclang artifacts/api-server/sc/test_all.scd"
 echo ""
 echo "  View live logs:"
 echo "       journalctl -u atmosphere-backend -f"
