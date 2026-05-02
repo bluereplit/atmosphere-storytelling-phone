@@ -212,17 +212,25 @@ function AttributeControl({ name, initialTempo }: { name: AttributeName; initial
 
       {/* Distance — spatial positioning for ambient/distant sounds */}
       {isDistance && (
-        <div className={`flex items-center gap-2 ${enabled ? "" : "opacity-50"}`}>
-          <Waves className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <Slider
-            value={[localDistance]}
-            min={0}
-            max={100}
-            step={1}
-            onValueChange={handleDistanceChange}
-            className="flex-1"
-          />
-          <span className="text-xs text-muted-foreground w-9 text-right shrink-0">{localDistance}%</span>
+        <div className={`flex flex-col gap-0.5 ${enabled ? "" : "opacity-50"}`}>
+          <div className="flex items-center gap-2">
+            <Waves className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <Slider
+              value={[localDistance]}
+              min={0}
+              max={100}
+              step={1}
+              onValueChange={handleDistanceChange}
+              className="flex-1"
+            />
+            <span className="text-xs font-mono text-primary w-9 text-right shrink-0">
+              {localDistance <= 33 ? "Near" : localDistance <= 66 ? "Mid" : "Far"}
+            </span>
+          </div>
+          <div className="flex justify-between pl-5 pr-0">
+            <span className="text-[10px] text-muted-foreground/50 leading-none">Near</span>
+            <span className="text-[10px] text-muted-foreground/50 leading-none">Far</span>
+          </div>
         </div>
       )}
     </div>
