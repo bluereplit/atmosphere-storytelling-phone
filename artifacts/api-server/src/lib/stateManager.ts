@@ -2,6 +2,7 @@ import {
   PHASES,
   ATTRIBUTE_NAMES,
   DEFAULT_PHASE_PARAMS,
+  DEFAULT_VOICE_PARAMS,
   type Phase,
   type PhaseParams,
   type EnvironmentTheme,
@@ -58,8 +59,8 @@ const attrVolumes = new Map<AttributeName, number>();
 const attrExtras = new Map<AttributeName, Record<string, number>>();
 
 let voiceActive: boolean = false;
-let voiceGain: number = 0.8;
-let voiceReverb: number = 0.2;
+let voiceGain: number = DEFAULT_VOICE_PARAMS.gain;
+let voiceReverb: number = DEFAULT_VOICE_PARAMS.reverb;
 let voiceNodeId: number = -1;
 
 const listeners: StateChangeCallback[] = [];
@@ -119,6 +120,9 @@ export function initFromShow(show: ShowConfig): void {
     }
     attrEnabled.set(name, initPhaseConfig?.attributes[name] ?? false);
   }
+
+  voiceGain = show.voice?.gain ?? DEFAULT_VOICE_PARAMS.gain;
+  voiceReverb = show.voice?.reverb ?? DEFAULT_VOICE_PARAMS.reverb;
 }
 
 function effectiveAmp(volume: number): number {

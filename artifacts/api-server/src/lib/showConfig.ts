@@ -25,6 +25,7 @@ export function loadShow(): ShowConfig {
         },
         attributeVolumes: { ...defaults.attributeVolumes, ...(parsed.attributeVolumes ?? {}) },
         attributeTempo: { ...defaults.attributeTempo, ...(parsed.attributeTempo ?? {}) },
+        voice: { ...defaults.voice, ...(parsed.voice ?? {}) },
       };
     }
   } catch (err) {

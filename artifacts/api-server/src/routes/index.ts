@@ -5,7 +5,7 @@ import { makeTransitionRouter } from "./transition.js";
 import environmentRouter from "./environment.js";
 import attributesRouter from "./attributes.js";
 import audioRouter from "./audio.js";
-import voiceRouter from "./voice.js";
+import { makeVoiceRouter } from "./voice.js";
 import { makeShowRouter } from "./show.js";
 import { makeDisplayRouter } from "./display.js";
 import phaseRouter from "./phase.js";
@@ -23,7 +23,7 @@ export function initRouter(
   router.use(environmentRouter);
   router.use(attributesRouter);
   router.use(audioRouter);
-  router.use(voiceRouter);
+  router.use(makeVoiceRouter(getShow, setShow));
   router.use(phaseRouter);
   router.use(makeShowRouter(getShow, setShow));
   router.use(makeDisplayRouter());

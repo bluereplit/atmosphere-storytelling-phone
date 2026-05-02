@@ -80,6 +80,16 @@ export interface PhaseConfig {
   intensity?: number;
 }
 
+export interface VoiceParams {
+  gain: number;
+  reverb: number;
+}
+
+export const DEFAULT_VOICE_PARAMS: VoiceParams = {
+  gain: 0.8,
+  reverb: 0.2,
+};
+
 export interface ShowConfig {
   environmentTheme: EnvironmentTheme;
   intensity: number;
@@ -87,6 +97,7 @@ export interface ShowConfig {
   attributeVolumes: Record<AttributeName, number>;
   attributeTempo: Partial<Record<AttributeName, number>>;
   muted: boolean;
+  voice: VoiceParams;
 }
 
 export const DEFAULT_PHASE_PARAMS: Record<Phase, PhaseParams> = {
@@ -153,5 +164,6 @@ export function buildDefaultShow(): ShowConfig {
     attributeVolumes: { ...DEFAULT_ATTRIBUTE_VOLUMES },
     attributeTempo: { ...DEFAULT_ATTRIBUTE_TEMPO },
     muted: false,
+    voice: { ...DEFAULT_VOICE_PARAMS },
   };
 }
