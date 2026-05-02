@@ -432,6 +432,12 @@ export function applyShowConfig(show: ShowConfig): void {
     setIntensity(effectiveIntensity);
   }
 
+  const newVoiceGain = show.voice?.gain ?? DEFAULT_VOICE_PARAMS.gain;
+  const newVoiceReverb = show.voice?.reverb ?? DEFAULT_VOICE_PARAMS.reverb;
+  if (newVoiceGain !== voiceGain || newVoiceReverb !== voiceReverb) {
+    setVoiceParams(newVoiceGain, newVoiceReverb);
+  }
+
   emit();
 }
 
