@@ -83,6 +83,7 @@ export interface PhaseConfig {
 export interface VoiceParams {
   gain: number;
   reverb: number;
+  active?: boolean;
 }
 
 export const DEFAULT_VOICE_PARAMS: VoiceParams = {
@@ -164,6 +165,6 @@ export function buildDefaultShow(): ShowConfig {
     attributeVolumes: { ...DEFAULT_ATTRIBUTE_VOLUMES },
     attributeTempo: { ...DEFAULT_ATTRIBUTE_TEMPO },
     muted: false,
-    voice: { ...DEFAULT_VOICE_PARAMS },
+    voice: { ...DEFAULT_VOICE_PARAMS, active: false },
   };
 }

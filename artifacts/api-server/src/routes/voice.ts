@@ -47,12 +47,26 @@ export function makeVoiceRouter(
 
   router.post("/voice/start", (_req: Request, res: Response) => {
     startVoice();
-    res.json({ ok: true, voice: getVoiceState() });
+    const updatedVoice = getVoiceState();
+    const updated: ShowConfig = {
+      ...getShow(),
+      voice: { gain: updatedVoice.gain, reverb: updatedVoice.reverb, active: true },
+    };
+    setShow(updated);
+    saveShow(updated);
+    res.json({ ok: true, voice: updatedVoice });
   });
 
   router.post("/voice/stop", (_req: Request, res: Response) => {
     stopVoice();
-    res.json({ ok: true, voice: getVoiceState() });
+    const updatedVoice = getVoiceState();
+    const updated: ShowConfig = {
+      ...getShow(),
+      voice: { gain: updatedVoice.gain, reverb: updatedVoice.reverb, active: false },
+    };
+    setShow(updated);
+    saveShow(updated);
+    res.json({ ok: true, voice: updatedVoice });
   });
 
   router.post("/voice/params", (req: Request, res: Response) => {
@@ -72,7 +86,7 @@ export function makeVoiceRouter(
     const updatedVoice = getVoiceState();
     const updated: ShowConfig = {
       ...getShow(),
-      voice: { gain: updatedVoice.gain, reverb: updatedVoice.reverb },
+      voice: { gain: updatedVoice.gain, reverb: updatedVoice.reverb, active: updatedVoice.active },
     };
     setShow(updated);
     saveShow(updated);

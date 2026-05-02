@@ -123,6 +123,7 @@ export function initFromShow(show: ShowConfig): void {
 
   voiceGain = show.voice?.gain ?? DEFAULT_VOICE_PARAMS.gain;
   voiceReverb = show.voice?.reverb ?? DEFAULT_VOICE_PARAMS.reverb;
+  voiceActive = show.voice?.active ?? false;
 }
 
 function effectiveAmp(volume: number): number {
@@ -367,6 +368,12 @@ export function startAudioEngine(show: ShowConfig): void {
       enableAttribute(name);
     }
   }
+
+  if (voiceActive) {
+    voiceNodeId = addSynth("voiceMix", { amp: voiceGain, reverb: voiceReverb });
+    logger.info({ voiceNodeId }, "Voice mix synth restored from persisted state");
+  }
+
   emit();
 }
 
