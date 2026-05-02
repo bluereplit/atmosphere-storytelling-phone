@@ -1,7 +1,20 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { execSync } from "child_process";
 import { startVoice, stopVoice, setVoiceParams, getVoiceState } from "../lib/stateManager.js";
 
 const router: IRouter = Router();
+
+router.get("/voice/loopback-status", (_req: Request, res: Response) => {
+  let available = false;
+  let error: string | null = null;
+  try {
+    const output = execSync("lsmod", { timeout: 3000 }).toString();
+    available = output.split("\n").some((line) => /^snd_aloop\b/.test(line));
+  } catch (err) {
+    error = err instanceof Error ? err.message : "lsmod check failed";
+  }
+  res.json({ available, error });
+});
 
 router.post("/voice/start", (_req: Request, res: Response) => {
   startVoice();

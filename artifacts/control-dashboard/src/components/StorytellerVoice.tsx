@@ -5,7 +5,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Mic, MicOff, Volume2, VolumeX, Waves, ChevronDown, ChevronRight } from "lucide-react";
+import { Mic, MicOff, Volume2, VolumeX, Waves, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -23,6 +23,18 @@ async function postVoiceParams(gain: number, reverb: number): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ gain, reverb }),
   });
+}
+
+async function fetchLoopbackStatus(): Promise<boolean | null> {
+  try {
+    const res = await fetch(`${BASE}/api/voice/loopback-status`);
+    if (!res.ok) return null;
+    const data = (await res.json()) as { available: boolean; error: string | null };
+    if (data.error != null) return null;
+    return data.available === true;
+  } catch {
+    return null;
+  }
 }
 
 interface MicSession {
@@ -46,6 +58,7 @@ export function StorytellerVoice() {
   const [level, setLevel] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [loopbackAvailable, setLoopbackAvailable] = useState<boolean | null>(null);
 
   const sessionRef = useRef<MicSession | null>(null);
   const gainRef = useRef(gain);
@@ -61,6 +74,10 @@ export function StorytellerVoice() {
     setGain(serverVoice.gain);
     setReverb(serverVoice.reverb);
   }, [serverVoice.gain, serverVoice.reverb]);
+
+  useEffect(() => {
+    fetchLoopbackStatus().then(setLoopbackAvailable);
+  }, []);
 
   const sendParams = useCallback((g: number, r: number) => {
     if (paramDebounceRef.current) clearTimeout(paramDebounceRef.current);
@@ -185,7 +202,13 @@ export function StorytellerVoice() {
               {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
               <Waves className="w-3.5 h-3.5" />
               Storyteller Voice
-              {micEnabled && wsConnected && (
+              {loopbackAvailable === false && (
+                <span className="ml-auto flex items-center gap-1 text-xs text-yellow-400 font-normal normal-case">
+                  <AlertTriangle className="w-3 h-3" />
+                  No loopback
+                </span>
+              )}
+              {micEnabled && wsConnected && loopbackAvailable !== false && (
                 <span className="ml-auto flex items-center gap-1 text-xs text-green-400 font-normal normal-case">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                   Live
@@ -197,6 +220,24 @@ export function StorytellerVoice() {
 
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0">
+            {loopbackAvailable === false && (
+              <div className="flex gap-2 items-start text-xs bg-yellow-500/10 border border-yellow-500/40 rounded p-2.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-yellow-400 mt-0.5 shrink-0" />
+                <span className="text-yellow-200/90 leading-relaxed">
+                  ALSA loopback device not found. Voice audio will be silently discarded.{" "}
+                  <a
+                    href={`${BASE}/api/docs/AUDIO_SETUP.md#6-storyteller-voice--alsa-loopback-setup`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2 text-yellow-300 hover:text-yellow-100 transition-colors"
+                  >
+                    See AUDIO_SETUP.md §6
+                  </a>{" "}
+                  to enable the loopback module.
+                </span>
+              </div>
+            )}
+
             {error && (
               <div className="text-xs text-destructive bg-destructive/10 rounded p-2 border border-destructive/30">
                 {error}

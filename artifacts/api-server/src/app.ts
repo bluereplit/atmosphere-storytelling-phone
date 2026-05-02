@@ -53,6 +53,7 @@ app.use(express.urlencoded({ extended: true }));
 
 const docsDir = join(__dirname, "../docs");
 app.use("/docs", express.static(docsDir));
+app.use("/api/docs", express.static(docsDir));
 
 app.use("/api", initRouter(getShow, setShow));
 
