@@ -23,10 +23,10 @@ The fastest way from a fresh Pi to a running system is the included install scri
 
 ### 1. Get the code onto the Pi
 
-Clone via the Replit git URL (replace `<url>` with the URL shown in your Replit project):
+Clone from GitHub:
 
 ```bash
-git clone <url> atmosphere
+git clone https://github.com/bluereplit/atmosphere-storytelling-system.git atmosphere
 cd atmosphere
 ```
 
