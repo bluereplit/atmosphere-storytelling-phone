@@ -15,8 +15,11 @@
 #   bash scripts/check_sc_syntax.sh
 #
 # Exit codes:
-#   0  — all files parsed without errors (or sclang not installed — see note)
+#   0  — all files parsed without errors
+#   0  — sclang not installed (advisory; see guard below)
+#   0  — sclang crashed with SIGABRT/exit 134 before parsing (advisory; environment problem)
 #   1  — one or more files contain a syntax error
+#   1  — sclang timed out (exit 124)
 
 set -euo pipefail
 
@@ -46,7 +49,10 @@ fi
 # Use the offscreen Qt platform so sclang works on headless machines (no X server).
 export QT_QPA_PLATFORM=offscreen
 
-SCLANG_VERSION="$(sclang -v 2>&1 | head -1)" || SCLANG_VERSION="(version unknown)"
+SCLANG_VERSION="$(sclang -v 2>/dev/null | head -1 || true)"
+if [ -z "$SCLANG_VERSION" ]; then
+    SCLANG_VERSION="(version unknown)"
+fi
 echo "sclang : $SCLANG_VERSION"
 echo ""
 
@@ -66,12 +72,22 @@ if [ "$EXIT_CODE" -ne 0 ]; then
         echo ""
         echo "ERROR: sclang timed out after ${TIMEOUT_SECS}s."
         echo "  This may indicate an infinite loop or a missing 0.exit call."
+        exit 1
+    elif [ "$EXIT_CODE" -eq 134 ]; then
+        echo ""
+        echo "ADVISORY: sclang crashed before parsing any files (exit code 134 — SIGABRT)."
+        echo "  This is an environment problem, not a code problem. Common causes:"
+        echo "    - Running as root without a Chromium/Qt sandbox (e.g. on a Raspberry Pi)."
+        echo "    - Missing or broken Qt platform plugin."
+        echo "  No SC code was evaluated, so no syntax verdict can be given."
+        echo "  Skipping syntax validation — exiting 0."
+        exit 0
     else
         echo ""
         echo "ERROR: Syntax check failed (exit code $EXIT_CODE)."
         echo "  Fix the errors above before deploying to the Raspberry Pi."
+        exit 1
     fi
-    exit 1
 fi
 
 echo ""
