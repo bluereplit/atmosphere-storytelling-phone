@@ -43,7 +43,10 @@ if ! command -v sclang &>/dev/null; then
     exit 0
 fi
 
-SCLANG_VERSION="$(sclang --version 2>&1 | head -1 || true)"
+# Use the offscreen Qt platform so sclang works on headless machines (no X server).
+export QT_QPA_PLATFORM=offscreen
+
+SCLANG_VERSION="$(sclang -v 2>&1 | head -1)" || SCLANG_VERSION="(version unknown)"
 echo "sclang : $SCLANG_VERSION"
 echo ""
 
