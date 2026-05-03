@@ -65,7 +65,24 @@ To find the Pi's IP address: `hostname -I`
 
 ---
 
-## Updating
+## Keeping Code in Sync
+
+### How changes flow from Replit → GitHub → Pi
+
+```
+Replit (development)
+  └─ task merged
+       └─ post-merge script runs automatically
+            └─ scripts/sync-github.sh pushes to GitHub
+                 └─ Pi operator runs: bash update.sh
+                      └─ git pull fetches from GitHub → services restart
+```
+
+Code is edited and merged in Replit. After every task merge, `scripts/sync-github.sh` runs automatically and attempts to push the new commit to GitHub (`https://github.com/bluereplit/atmosphere-storytelling-system`). It uses a dedicated remote named `github` in the Replit workspace, leaving `origin` untouched. No manual push is needed from Replit in the normal case; if the push fails (e.g. authentication expired), a warning is printed in the post-merge log and the commit can be pushed manually with `git push github main`.
+
+On the Pi, `update.sh` pulls from `origin`, which is GitHub when the Pi cloned with `git clone https://github.com/bluereplit/...`.
+
+### Updating the Pi
 
 When a new version is available, run the update script from the repo root on the Pi:
 
@@ -75,7 +92,7 @@ bash update.sh
 ```
 
 The script will:
-- Pull the latest code from the configured git remote
+- Pull the latest code from GitHub (`origin`)
 - Print a summary of commits and files that changed
 - Run `pnpm install --frozen-lockfile` to sync dependencies
 - Rebuild the API server
