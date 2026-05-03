@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# GitHub Actions workflow files (excluded from git: OAuth token lacks workflow scope)
+.github/workflows/
