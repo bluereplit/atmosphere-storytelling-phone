@@ -578,6 +578,16 @@ class AtmosphereApp:
 #  Entry point
 # ─────────────────────────────────────────────────────────────
 
+_SDL_HINT = (
+    "Set SDL_VIDEODRIVER to one of:\n"
+    "  SDL_VIDEODRIVER=x11       — standard X11 desktop session (DISPLAY=:0 must also be set)\n"
+    "  SDL_VIDEODRIVER=kmsdrm    — Raspberry Pi without X, direct KMS/DRM (needs /dev/dri)\n"
+    "  SDL_VIDEODRIVER=offscreen — headless / CI / test environment\n"
+    "If running under systemd or supervisord, add the variable to the [Service] "
+    "environment block so the process manager can restart after failures."
+)
+
+
 def main() -> None:
     args = parse_args()
     app = AtmosphereApp(args)
@@ -585,11 +595,18 @@ def main() -> None:
         app.run()
     except KeyboardInterrupt:
         log.info("Interrupted — exiting")
-    except RuntimeError as e:
-        log.error("Startup error: %s", e)
+    except RuntimeError as exc:
+        log.error("Display startup failed: %s", exc)
+        log.error(_SDL_HINT)
         sys.exit(1)
-    except Exception:
-        log.exception("Fatal error in display app")
+    except Exception as exc:
+        log.error("Unexpected error in display app: %s", exc)
+        log.error(
+            "If this is a video or display initialisation error, check that the "
+            "DISPLAY environment variable is set correctly for X11, or that "
+            "/dev/dri is accessible for KMS/DRM mode."
+        )
+        log.error(_SDL_HINT)
         sys.exit(1)
 
 
