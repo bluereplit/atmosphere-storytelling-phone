@@ -412,6 +412,14 @@ class AtmosphereApp:
             os.environ["DISPLAY"] = self._args.display
 
         pygame.init()
+
+        if not pygame.display.get_init():
+            raise RuntimeError(
+                "pygame video system failed to initialise — check that "
+                "SDL_VIDEODRIVER=kmsdrm is supported on this device and that "
+                "/dev/dri is accessible"
+            )
+
         pygame.mouse.set_visible(False)
 
         flags = pygame.HWSURFACE | pygame.DOUBLEBUF
@@ -577,6 +585,9 @@ def main() -> None:
         app.run()
     except KeyboardInterrupt:
         log.info("Interrupted — exiting")
+    except RuntimeError as e:
+        log.error("Startup error: %s", e)
+        sys.exit(1)
     except Exception:
         log.exception("Fatal error in display app")
         sys.exit(1)
