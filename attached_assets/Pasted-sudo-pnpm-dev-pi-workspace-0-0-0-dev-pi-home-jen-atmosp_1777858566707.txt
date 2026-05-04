@@ -1,0 +1,69 @@
+sudo pnpm dev:pi
+
+> workspace@0.0.0 dev:pi /home/jen/atmosphere
+> concurrently --names api,display --prefix-colors cyan,magenta "pnpm --filter @workspace/api-server run dev" "pnpm --filter @workspace/display run start:kms"
+
+[api]
+[api] > @workspace/api-server@0.0.0 dev /home/jen/atmosphere/artifacts/api-server
+[api] > export NODE_ENV=development && pnpm run build && pnpm run start
+[api]
+[display]
+[display] > @workspace/display@0.0.0 start:kms /home/jen/atmosphere/artifacts/atmosphere-display
+[display] > SDL_VIDEODRIVER=kmsdrm python3 main.py --ws-port 8080
+[display]
+[api]
+[api] > @workspace/api-server@0.0.0 build /home/jen/atmosphere/artifacts/api-server
+[api] > node ./build.mjs
+[api]
+[display] 2026-05-03 21:34:48,580 [atm-display] INFO Connecting to ws://localhost:8080/ws
+[display] 2026-05-03 21:34:48,857 [atm-display] ERROR Fatal error in display app
+[display] Traceback (most recent call last):
+[display]   File "/home/jen/atmosphere/artifacts/atmosphere-display/main.py", line 577, in main
+[display]     app.run()
+[display]     ~~~~~~~^^
+[display]   File "/home/jen/atmosphere/artifacts/atmosphere-display/main.py", line 415, in run
+[display]     pygame.mouse.set_visible(False)
+[display]     ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+[display] pygame.error: video system not initialized
+[display] pygame 2.6.1 (SDL 2.32.4, Python 3.13.5)
+[display] Hello from the pygame community. https://www.pygame.org/contribute.html
+[display] /home/jen/atmosphere/artifacts/atmosphere-display:
+[display]  ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/display@0.0.0 start:kms: `SDL_VIDEODRIVER=kmsdrm python3 main.py --ws-port 8080`
+[display] Exit status 1
+[display]  WARN   Local package.json exists, but node_modules missing, did you mean to install?
+[display] pnpm --filter @workspace/display run start:kms exited with code 1
+[api]
+[api]   dist/index.mjs                       1.6mb ⚠️
+[api]   dist/pino-worker.mjs               153.4kb
+[api]   dist/pino-file.mjs                 142.1kb
+[api]   dist/pino-pretty.mjs               114.6kb
+[api]   dist/thread-stream-worker.mjs        7.3kb
+[api]   dist/index.mjs.map                   2.6mb
+[api]   dist/pino-worker.mjs.map           256.9kb
+[api]   dist/pino-file.mjs.map             229.0kb
+[api]   dist/pino-pretty.mjs.map           203.9kb
+[api]   dist/thread-stream-worker.mjs.map   12.0kb
+[api]
+[api] ⚡ Done in 1553ms
+[api]
+[api] > @workspace/api-server@0.0.0 start /home/jen/atmosphere/artifacts/api-server
+[api] > node --enable-source-maps ./dist/index.mjs
+[api]
+[api] /home/jen/atmosphere/artifacts/api-server/src/index.ts:7
+[api]   throw new Error("PORT environment variable is required but was not provided.");
+[api]         ^
+[api]
+[api]
+[api] Error: PORT environment variable is required but was not provided.
+[api]     at <anonymous> (/home/jen/atmosphere/artifacts/api-server/src/index.ts:7:9)
+[api]     at ModuleJob.run (node:internal/modules/esm/module_job:325:25)
+[api]     at async ModuleLoader.import (node:internal/modules/esm/loader:606:24)
+[api]     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+[api]
+[api] Node.js v20.20.2
+[api]  ELIFECYCLE  Command failed with exit code 1.
+[api] /home/jen/atmosphere/artifacts/api-server:
+[api]  ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 dev: `export NODE_ENV=development && pnpm run build && pnpm run start`
+[api] Exit status 1
+[api] pnpm --filter @workspace/api-server run dev exited with code 1
+ ELIFECYCLE  Command failed with exit code 1.
