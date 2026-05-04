@@ -10,6 +10,7 @@
     "dev": "concurrently --names api,display --prefix-colors cyan,magenta \"pnpm --filter @workspace/api-server run dev\" \"pnpm --filter @workspace/display run start:headless\"",
     "dev:pi": "concurrently --names api,display --prefix-colors cyan,magenta \"PORT=8080 pnpm --filter @workspace/api-server run dev\" \"pnpm --filter @workspace/display run start:kms\"",
     "dev:pi:x11": "concurrently --names api,display --prefix-colors cyan,magenta \"PORT=8080 pnpm --filter @workspace/api-server run dev\" \"pnpm --filter @workspace/display run start:x11\"",
+    "dev:pi:fbcon": "concurrently --names api,display --prefix-colors cyan,magenta \"PORT=8080 pnpm --filter @workspace/api-server run dev\" \"pnpm --filter @workspace/display run start:fbcon\"",
     "start:display": "pnpm --filter @workspace/display run start:headless",
     "start:display:x11": "pnpm --filter @workspace/display run start:x11",
     "start:display:kms": "pnpm --filter @workspace/display run start:kms",
