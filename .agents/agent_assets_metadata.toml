@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "TDPzJBF49UU92ksWwKB3Q"
+uri = "file://artifacts/atmosphere-phone/assets/images/icon.png"
+type = "image"
+title = "generated_image"

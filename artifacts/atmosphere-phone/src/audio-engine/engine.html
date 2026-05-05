@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0;background:#000;overflow:hidden;}</style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  let started = false;
+  let masterVolume = 0.8;
+  let muted = false;
+  let globalReverb = 0.3;
+  let globalLpfFreq = 8000;
+  let globalPitch = 0;
+
+  // ── Master chain ──────────────────────────────────────────────
+  const masterGain = new Tone.Gain(masterVolume).toDestination();
+  const limiter = new Tone.Limiter(-3).connect(masterGain);
+  const pitchShift = new Tone.PitchShift(0).connect(limiter);
+  const lpf = new Tone.Filter(globalLpfFreq, 'lowpass').connect(pitchShift);
+  const reverb = new Tone.Reverb({ decay: 4, wet: globalReverb }).connect(lpf);
+  const dryBus = new Tone.Gain(1).connect(lpf);
+
+  // ── Helper: connect to wet/dry buses ─────────────────────────
+  function toWet(node) { node.connect(reverb); return node; }
+  function toDry(node) { node.connect(dryBus); return node; }
+  function toBoth(node, wetRatio) {
+    const s = new Tone.Split();
+    const wetG = new Tone.Gain(wetRatio).connect(reverb);
+    const dryG = new Tone.Gain(1 - wetRatio).connect(dryBus);
+    node.connect(wetG);
+    node.connect(dryG);
+    return node;
+  }
+
+  // ── Per-attribute nodes ───────────────────────────────────────
+  const attribs = {};
+
+  function makeNoise(type, filterFreq, filterType, wet) {
+    const gain = new Tone.Gain(0);
+    const noise = new Tone.Noise(type);
+    const filt = new Tone.Filter(filterFreq, filterType);
+    noise.connect(filt);
+    filt.connect(gain);
+    wet ? toWet(gain) : toDry(gain);
+    return {
+      gain,
+      start() { noise.start(); },
+      stop() { noise.stop(); },
+      setVolume(v) { gain.gain.rampTo(v, 0.5); },
+    };
+  }
+
+  function makeLFONoise(type, lforate, lfoDepth, filterFreq) {
+    const gain = new Tone.Gain(0);
+    const noise = new Tone.Noise(type);
+    const autoFilt = new Tone.AutoFilter({ frequency: lforate, octaves: lfoDepth }).start();
+    const filt = new Tone.Filter(filterFreq, 'lowpass');
+    noise.connect(autoFilt);
+    autoFilt.connect(filt);
+    filt.connect(gain);
+    toBoth(gain, 0.3);
+    return {
+      gain,
+      start() { noise.start(); },
+      stop() { noise.stop(); },
+      setVolume(v) { gain.gain.rampTo(v, 0.5); },
+    };
+  }
+
+  function makeOscillator(freq, type, wet) {
+    const gain = new Tone.Gain(0);
+    const osc = new Tone.Oscillator(freq, type).start();
+    osc.connect(gain);
+    wet ? toWet(gain) : toDry(gain);
+    return {
+      gain,
+      setVolume(v) { gain.gain.rampTo(v, 0.5); },
+    };
+  }
+
+  // ── Wind ─────────────────────────────────────────────────────
+  attribs.wind = makeLFONoise('pink', 0.08, 3, 2000);
+
+  // ── Rain ─────────────────────────────────────────────────────
+  attribs.rain = (() => {
+    const g = new Tone.Gain(0);
+    const n1 = new Tone.Noise('white');
+    const n2 = new Tone.Noise('pink');
+    const hp = new Tone.Filter(800, 'highpass');
+    const lp = new Tone.Filter(6000, 'lowpass');
+    n1.connect(hp); n2.connect(hp);
+    hp.connect(lp); lp.connect(g);
+    toWet(g);
+    return { gain: g, start() { n1.start(); n2.start(); }, stop() { n1.stop(); n2.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.6, 0.5); } };
+  })();
+
+  // ── Crickets ─────────────────────────────────────────────────
+  attribs.crickets = (() => {
+    const g = new Tone.Gain(0);
+    const osc = new Tone.Oscillator(4200, 'sawtooth');
+    const am = new Tone.AMOscillator({ frequency: 4200, modulationFrequency: 18, type: 'sawtooth' });
+    const lp = new Tone.Filter(5500, 'lowpass');
+    am.connect(lp); lp.connect(g);
+    toDry(g);
+    return { gain: g, start() { am.start(); }, stop() { am.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.4, 0.5); } };
+  })();
+
+  // ── Birds ─────────────────────────────────────────────────────
+  attribs.birds = (() => {
+    const g = new Tone.Gain(0);
+    const synths = [];
+    for (let i = 0; i < 3; i++) {
+      const s = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.1, decay: 0.2, sustain: 0.5, release: 0.5 } });
+      s.connect(g);
+      synths.push(s);
+    }
+    toWet(g);
+    let loop;
+    function trigger() {
+      const notes = ['C5','D5','E5','G5','A5','C6','D6'];
+      synths.forEach(s => {
+        if (Math.random() < 0.4) {
+          const note = notes[Math.floor(Math.random() * notes.length)];
+          try { s.triggerAttackRelease(note, Math.random() * 0.3 + 0.1); } catch(e) {}
+        }
+      });
+    }
+    return {
+      gain: g,
+      start() { loop = setInterval(trigger, 800 + Math.random() * 1200); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.5, 0.5); },
+    };
+  })();
+
+  // ── Owls ─────────────────────────────────────────────────────
+  attribs.owls = (() => {
+    const g = new Tone.Gain(0);
+    const synth = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.3, decay: 0.5, sustain: 0.6, release: 1.5 } });
+    synth.connect(g); toWet(g);
+    let loop;
+    function hoot() {
+      try { synth.triggerAttackRelease('A3', 0.8); } catch(e) {}
+      setTimeout(() => { try { synth.triggerAttackRelease('G3', 1.2); } catch(e) {} }, 900);
+    }
+    return {
+      gain: g,
+      start() { hoot(); loop = setInterval(hoot, 6000 + Math.random() * 8000); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.6, 0.5); },
+    };
+  })();
+
+  // ── Campfire ──────────────────────────────────────────────────
+  attribs.campfire = (() => {
+    const g = new Tone.Gain(0);
+    const noise = new Tone.Noise('brown');
+    const dist = new Tone.Distortion(0.3);
+    const lp = new Tone.Filter(800, 'lowpass');
+    const am = new Tone.Tremolo({ frequency: 3, depth: 0.4 }).start();
+    noise.connect(dist); dist.connect(lp); lp.connect(am); am.connect(g);
+    toBoth(g, 0.15);
+    return { gain: g, start() { noise.start(); }, stop() { noise.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.8, 0.5); } };
+  })();
+
+  // ── Ocean Waves ───────────────────────────────────────────────
+  attribs.ocean_waves = (() => {
+    const g = new Tone.Gain(0);
+    const n = new Tone.Noise('pink');
+    const lfo1 = new Tone.LFO({ frequency: 0.07, min: 0.1, max: 1 });
+    const waveGain = new Tone.Gain(0.5);
+    const lp = new Tone.Filter(1200, 'lowpass');
+    n.connect(lp); lp.connect(waveGain);
+    lfo1.connect(waveGain.gain);
+    waveGain.connect(g);
+    toWet(g);
+    return {
+      gain: g,
+      start() { n.start(); lfo1.start(); },
+      stop() { n.stop(); lfo1.stop(); },
+      setVolume(v) { g.gain.rampTo(v * 0.9, 0.5); },
+    };
+  })();
+
+  // ── Thunder ───────────────────────────────────────────────────
+  attribs.thunder = (() => {
+    const g = new Tone.Gain(0);
+    const n = new Tone.Noise('brown');
+    const env = new Tone.AmplitudeEnvelope({ attack: 0.01, decay: 3, sustain: 0, release: 2 });
+    n.connect(env); env.connect(g); toWet(g);
+    let loop;
+    function crack() { env.triggerAttackRelease(3); }
+    return {
+      gain: g,
+      start() { crack(); loop = setInterval(crack, 8000 + Math.random() * 15000); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 1.2, 0.1); },
+    };
+  })();
+
+  // ── Frogs ─────────────────────────────────────────────────────
+  attribs.frogs = (() => {
+    const g = new Tone.Gain(0);
+    const synth = new Tone.FMSynth({ harmonicity: 2, modulationIndex: 8, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.2 } });
+    synth.connect(g); toDry(g);
+    let loop;
+    function croak() {
+      const notes = ['A2', 'G2', 'F2'];
+      try { synth.triggerAttackRelease(notes[Math.floor(Math.random() * notes.length)], 0.1); } catch(e) {}
+    }
+    return {
+      gain: g,
+      start() { loop = setInterval(croak, 400 + Math.random() * 600); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.5, 0.5); },
+    };
+  })();
+
+  // ── Stream ────────────────────────────────────────────────────
+  attribs.stream = (() => {
+    const g = new Tone.Gain(0);
+    const n = new Tone.Noise('white');
+    const bp = new Tone.Filter(1800, 'bandpass');
+    bp.Q.value = 2;
+    n.connect(bp); bp.connect(g); toBoth(g, 0.25);
+    return { gain: g, start() { n.start(); }, stop() { n.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.55, 0.5); } };
+  })();
+
+  // ── Wolves ────────────────────────────────────────────────────
+  attribs.wolves = (() => {
+    const g = new Tone.Gain(0);
+    const synth = new Tone.Synth({ oscillator: { type: 'sawtooth' }, envelope: { attack: 0.5, decay: 0.5, sustain: 0.7, release: 2 } });
+    synth.connect(g); toWet(g);
+    let loop;
+    function howl() {
+      try {
+        synth.triggerAttack('A2');
+        setTimeout(() => { try { synth.frequency.rampTo('E3', 1.5); } catch(e) {} }, 200);
+        setTimeout(() => { try { synth.triggerRelease(); } catch(e) {} }, 2500);
+      } catch(e) {}
+    }
+    return {
+      gain: g,
+      start() { howl(); loop = setInterval(howl, 12000 + Math.random() * 15000); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.6, 0.5); },
+    };
+  })();
+
+  // ── Ravens ────────────────────────────────────────────────────
+  attribs.ravens = (() => {
+    const g = new Tone.Gain(0);
+    const synth = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.02, decay: 0.2, sustain: 0.1, release: 0.2 } });
+    synth.connect(g); toWet(g);
+    let loop;
+    function caw() { try { synth.triggerAttackRelease('C4', 0.15); setTimeout(() => { try { synth.triggerAttackRelease('A3', 0.1); } catch(e) {} }, 200); } catch(e) {} }
+    return {
+      gain: g,
+      start() { loop = setInterval(caw, 4000 + Math.random() * 8000); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.4, 0.5); },
+    };
+  })();
+
+  // ── Bats ──────────────────────────────────────────────────────
+  attribs.bats = (() => {
+    const g = new Tone.Gain(0);
+    const n = new Tone.Noise('white');
+    const hp = new Tone.Filter(8000, 'highpass');
+    const am = new Tone.Tremolo({ frequency: 20, depth: 0.9 }).start();
+    n.connect(hp); hp.connect(am); am.connect(g); toDry(g);
+    return { gain: g, start() { n.start(); }, stop() { n.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.25, 0.5); } };
+  })();
+
+  // ── Night Insects ─────────────────────────────────────────────
+  attribs.insects_night = (() => {
+    const g = new Tone.Gain(0);
+    const n = new Tone.Noise('white');
+    const bp = new Tone.Filter(6000, 'bandpass');
+    bp.Q.value = 4;
+    const am2 = new Tone.Tremolo({ frequency: 35, depth: 0.8 }).start();
+    n.connect(bp); bp.connect(am2); am2.connect(g); toDry(g);
+    return { gain: g, start() { n.start(); }, stop() { n.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.35, 0.5); } };
+  })();
+
+  // ── Horses ────────────────────────────────────────────────────
+  attribs.horses = (() => {
+    const g = new Tone.Gain(0);
+    const synth = new Tone.MembraneSynth({ pitchDecay: 0.06, octaves: 4, envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 0.1 } });
+    synth.connect(g); toDry(g);
+    let loop;
+    const pattern = [0, 120, 240, 360];
+    function gallop() {
+      pattern.forEach((t, i) => {
+        setTimeout(() => { try { synth.triggerAttackRelease('C2', 0.05); } catch(e) {} }, t);
+      });
+    }
+    return {
+      gain: g,
+      start() { loop = setInterval(gallop, 2500 + Math.random() * 3000); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.7, 0.5); },
+    };
+  })();
+
+  // ── Waterfall ─────────────────────────────────────────────────
+  attribs.waterfall = makeNoise('white', 3000, 'lowpass', true);
+
+  // ── Blizzard ──────────────────────────────────────────────────
+  attribs.blizzard = (() => {
+    const g = new Tone.Gain(0);
+    const n = new Tone.Noise('white');
+    const lp = new Tone.Filter(4000, 'lowpass');
+    const chorus = new Tone.Chorus(3, 2, 0.5).start();
+    n.connect(lp); lp.connect(chorus); chorus.connect(g); toWet(g);
+    return { gain: g, start() { n.start(); }, stop() { n.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.9, 0.5); } };
+  })();
+
+  // ── Sandstorm ─────────────────────────────────────────────────
+  attribs.sandstorm = (() => {
+    const g = new Tone.Gain(0);
+    const n = new Tone.Noise('brown');
+    const dist = new Tone.Distortion(0.6);
+    const lp = new Tone.Filter(2000, 'lowpass');
+    n.connect(dist); dist.connect(lp); lp.connect(g); toDry(g);
+    return { gain: g, start() { n.start(); }, stop() { n.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.8, 0.5); } };
+  })();
+
+  // ── Geothermal ────────────────────────────────────────────────
+  attribs.geothermal = (() => {
+    const g = new Tone.Gain(0);
+    const osc = new Tone.Oscillator(40, 'sawtooth');
+    const lp = new Tone.Filter(200, 'lowpass');
+    const n = new Tone.Noise('brown');
+    const nlp = new Tone.Filter(300, 'lowpass');
+    const mix = new Tone.Gain(0.5);
+    osc.connect(lp); n.connect(nlp); lp.connect(mix); nlp.connect(mix);
+    mix.connect(g); toWet(g);
+    return { gain: g, start() { osc.start(); n.start(); }, stop() { osc.stop(); n.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.7, 0.5); } };
+  })();
+
+  // ── Traffic ───────────────────────────────────────────────────
+  attribs.traffic = makeNoise('pink', 600, 'lowpass', false);
+
+  // ── Crowd ─────────────────────────────────────────────────────
+  attribs.crowd = (() => {
+    const g = new Tone.Gain(0);
+    const noises = ['pink', 'white', 'brown'].map(t => new Tone.Noise(t));
+    const filters = [800, 1500, 3000].map(f => new Tone.Filter(f, 'bandpass'));
+    filters.forEach(f => { f.Q.value = 3; });
+    noises.forEach((n, i) => { n.connect(filters[i]); filters[i].connect(g); });
+    toDry(g);
+    return { gain: g, start() { noises.forEach(n => n.start()); }, stop() { noises.forEach(n => n.stop()); }, setVolume(v) { g.gain.rampTo(v * 0.6, 0.5); } };
+  })();
+
+  // ── Subway ────────────────────────────────────────────────────
+  attribs.subway = (() => {
+    const g = new Tone.Gain(0);
+    const n = new Tone.Noise('brown');
+    const lp = new Tone.Filter(500, 'lowpass');
+    const lfo = new Tone.LFO({ frequency: 0.05, min: 200, max: 800 });
+    lfo.connect(lp.frequency); lfo.start();
+    n.connect(lp); lp.connect(g); toDry(g);
+    return { gain: g, start() { n.start(); }, stop() { n.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.8, 0.5); } };
+  })();
+
+  // ── Sirens ────────────────────────────────────────────────────
+  attribs.sirens = (() => {
+    const g = new Tone.Gain(0);
+    const osc = new Tone.Oscillator(600, 'sawtooth');
+    const lfo = new Tone.LFO({ frequency: 0.5, min: 600, max: 900 });
+    lfo.connect(osc.frequency); lfo.start();
+    osc.connect(g); toBoth(g, 0.2);
+    return { gain: g, start() { osc.start(); }, stop() { osc.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.3, 0.5); } };
+  })();
+
+  // ── City Rain ─────────────────────────────────────────────────
+  attribs.rain_city = (() => {
+    const g = new Tone.Gain(0);
+    const n1 = new Tone.Noise('white');
+    const n2 = new Tone.Noise('pink');
+    const hp = new Tone.Filter(600, 'highpass');
+    const lp = new Tone.Filter(400, 'lowpass');
+    n1.connect(hp); n2.connect(lp);
+    hp.connect(g); lp.connect(g); toDry(g);
+    return { gain: g, start() { n1.start(); n2.start(); }, stop() { n1.stop(); n2.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.7, 0.5); } };
+  })();
+
+  // ── Singing Bowls ─────────────────────────────────────────────
+  attribs.singing_bowls = (() => {
+    const g = new Tone.Gain(0);
+    const synth = new Tone.FMSynth({
+      harmonicity: 5.1, modulationIndex: 32,
+      oscillator: { type: 'sine' },
+      envelope: { attack: 0.5, decay: 2, sustain: 0.4, release: 4 },
+      modulation: { type: 'sine' },
+    });
+    synth.connect(g); toWet(g);
+    const notes = ['D3', 'A3', 'E3', 'G3'];
+    let i = 0; let loop;
+    function strike() { try { synth.triggerAttackRelease(notes[i % notes.length], 4); i++; } catch(e) {} }
+    return {
+      gain: g,
+      start() { strike(); loop = setInterval(strike, 5000 + Math.random() * 4000); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.7, 0.5); },
+    };
+  })();
+
+  // ── Chimes ────────────────────────────────────────────────────
+  attribs.chimes = (() => {
+    const g = new Tone.Gain(0);
+    const synth = new Tone.MetalSynth({ frequency: 400, envelope: { attack: 0.001, decay: 1.4, release: 0.2 }, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5 });
+    synth.connect(g); toWet(g);
+    let loop;
+    const notes = [400, 533, 640, 800, 1067];
+    function chime() {
+      if (Math.random() < 0.7) {
+        synth.frequency.value = notes[Math.floor(Math.random() * notes.length)];
+        try { synth.triggerAttackRelease('16n'); } catch(e) {}
+      }
+    }
+    return {
+      gain: g,
+      start() { loop = setInterval(chime, 800 + Math.random() * 1500); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.5, 0.5); },
+    };
+  })();
+
+  // ── Whispers ──────────────────────────────────────────────────
+  attribs.whispers = (() => {
+    const g = new Tone.Gain(0);
+    const n = new Tone.Noise('white');
+    const hp = new Tone.Filter(2000, 'highpass');
+    const chorus = new Tone.Chorus(2, 3, 0.7).start();
+    const reverb2 = new Tone.Reverb({ decay: 6, wet: 0.8 });
+    n.connect(hp); hp.connect(chorus); chorus.connect(reverb2); reverb2.connect(g);
+    toDry(g);
+    return { gain: g, start() { n.start(); }, stop() { n.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.35, 0.5); } };
+  })();
+
+  // ── Choir Pad ─────────────────────────────────────────────────
+  attribs.choir_pad = (() => {
+    const g = new Tone.Gain(0);
+    const oscs = [
+      new Tone.Oscillator({ frequency: 'C3', type: 'sine' }),
+      new Tone.Oscillator({ frequency: 'E3', type: 'sine' }),
+      new Tone.Oscillator({ frequency: 'G3', type: 'sine' }),
+      new Tone.Oscillator({ frequency: 'B3', type: 'sine' }),
+    ];
+    const chorus = new Tone.Chorus(1.5, 3.5, 0.8).start();
+    oscs.forEach((o, i) => { o.detune.value = (i - 1.5) * 8; o.connect(chorus); });
+    const gain2 = new Tone.Gain(0.25);
+    chorus.connect(gain2); gain2.connect(g); toWet(g);
+    return {
+      gain: g,
+      start() { oscs.forEach(o => o.start()); },
+      stop() { oscs.forEach(o => o.stop()); },
+      setVolume(v) { g.gain.rampTo(v * 0.55, 0.5); },
+    };
+  })();
+
+  // ── Portal Hum ────────────────────────────────────────────────
+  attribs.portal_hum = (() => {
+    const g = new Tone.Gain(0);
+    const osc1 = new Tone.Oscillator({ frequency: 60, type: 'sine' });
+    const osc2 = new Tone.Oscillator({ frequency: 120.4, type: 'sine' });
+    const osc3 = new Tone.Oscillator({ frequency: 180.8, type: 'sine' });
+    const mix = new Tone.Gain(0.33);
+    [osc1, osc2, osc3].forEach(o => o.connect(mix));
+    const flange = new Tone.Chorus(0.3, 20, 0.9).start();
+    mix.connect(flange); flange.connect(g); toWet(g);
+    return {
+      gain: g,
+      start() { [osc1, osc2, osc3].forEach(o => o.start()); },
+      stop() { [osc1, osc2, osc3].forEach(o => o.stop()); },
+      setVolume(v) { g.gain.rampTo(v * 0.6, 0.5); },
+    };
+  })();
+
+  // ── Heartbeat ─────────────────────────────────────────────────
+  attribs.heartbeat = (() => {
+    const g = new Tone.Gain(0);
+    const kick = new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 8, envelope: { attack: 0.001, decay: 0.3, sustain: 0, release: 0.1 } });
+    kick.connect(g); toDry(g);
+    let loop;
+    function beat() {
+      try { kick.triggerAttackRelease('C1', '8n'); } catch(e) {}
+      setTimeout(() => { try { kick.triggerAttackRelease('C1', '8n'); } catch(e) {} }, 250);
+    }
+    return {
+      gain: g,
+      start() { beat(); loop = setInterval(beat, 1000); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.8, 0.5); },
+    };
+  })();
+
+  // ── War Drums ─────────────────────────────────────────────────
+  attribs.war_drums = (() => {
+    const g = new Tone.Gain(0);
+    const drum = new Tone.MembraneSynth({ pitchDecay: 0.08, octaves: 5, envelope: { attack: 0.001, decay: 0.5, sustain: 0, release: 0.2 } });
+    drum.connect(g); toWet(g);
+    let loop;
+    const pat = [0, 300, 600, 900, 1200];
+    function march() { pat.forEach(t => setTimeout(() => { try { drum.triggerAttackRelease('C1', '8n'); } catch(e) {} }, t)); }
+    return {
+      gain: g,
+      start() { march(); loop = setInterval(march, 2000); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.9, 0.5); },
+    };
+  })();
+
+  // ── Tension Drone ─────────────────────────────────────────────
+  attribs.tension_drone = (() => {
+    const g = new Tone.Gain(0);
+    const o1 = new Tone.Oscillator({ frequency: 55, type: 'sawtooth' });
+    const o2 = new Tone.Oscillator({ frequency: 55.5, type: 'sawtooth' });
+    const o3 = new Tone.Oscillator({ frequency: 82, type: 'sine' });
+    const lp2 = new Tone.Filter(300, 'lowpass');
+    [o1, o2, o3].forEach(o => o.connect(lp2));
+    lp2.connect(g); toWet(g);
+    return {
+      gain: g,
+      start() { [o1, o2, o3].forEach(o => o.start()); },
+      stop() { [o1, o2, o3].forEach(o => o.stop()); },
+      setVolume(v) { g.gain.rampTo(v * 0.5, 0.5); },
+    };
+  })();
+
+  // ── Distant Thunder ───────────────────────────────────────────
+  attribs.thunder_distant = (() => {
+    const g = new Tone.Gain(0);
+    const n = new Tone.Noise('brown');
+    const env = new Tone.AmplitudeEnvelope({ attack: 0.05, decay: 5, sustain: 0, release: 3 });
+    const lp3 = new Tone.Filter(300, 'lowpass');
+    n.connect(lp3); lp3.connect(env); env.connect(g); toWet(g);
+    let loop;
+    function rumble() { env.triggerAttackRelease(5); }
+    return {
+      gain: g,
+      start() { rumble(); loop = setInterval(rumble, 15000 + Math.random() * 20000); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.6, 0.1); },
+    };
+  })();
+
+  // ── Blacksmith ────────────────────────────────────────────────
+  attribs.blacksmith = (() => {
+    const g = new Tone.Gain(0);
+    const metal = new Tone.MetalSynth({ frequency: 200, envelope: { attack: 0.001, decay: 0.5, release: 0.1 }, harmonicity: 5.1, modulationIndex: 16, resonance: 2000, octaves: 1 });
+    metal.connect(g); toWet(g);
+    let loop;
+    function clang() { try { metal.triggerAttackRelease('16n'); } catch(e) {} }
+    return {
+      gain: g,
+      start() { loop = setInterval(clang, 600 + Math.random() * 800); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.7, 0.5); },
+    };
+  })();
+
+  // ── Church Bells ──────────────────────────────────────────────
+  attribs.church_bells = (() => {
+    const g = new Tone.Gain(0);
+    const synth = new Tone.FMSynth({ harmonicity: 8, modulationIndex: 20, envelope: { attack: 0.001, decay: 4, sustain: 0, release: 2 }, modulation: { type: 'sine' } });
+    synth.connect(g); toWet(g);
+    let loop;
+    const bells = ['C4', 'E4', 'G4', 'C5'];
+    let bi = 0;
+    function ring() { try { synth.triggerAttackRelease(bells[bi++ % bells.length], '1m'); } catch(e) {} }
+    return {
+      gain: g,
+      start() { loop = setInterval(ring, 10000 + Math.random() * 15000); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.65, 0.5); },
+    };
+  })();
+
+  // ── Tavern Crowd ──────────────────────────────────────────────
+  attribs.tavern_crowd = (() => {
+    const g = new Tone.Gain(0);
+    const n1 = new Tone.Noise('pink');
+    const f1 = new Tone.Filter(800, 'bandpass');
+    const f2 = new Tone.Filter(400, 'lowpass');
+    const n2 = new Tone.Noise('brown');
+    f1.Q.value = 2; n1.connect(f1); n2.connect(f2);
+    f1.connect(g); f2.connect(g); toDry(g);
+    return { gain: g, start() { n1.start(); n2.start(); }, stop() { n1.stop(); n2.stop(); }, setVolume(v) { g.gain.rampTo(v * 0.65, 0.5); } };
+  })();
+
+  // ── Seagulls ──────────────────────────────────────────────────
+  attribs.seagulls = (() => {
+    const g = new Tone.Gain(0);
+    const synth = new Tone.Synth({ oscillator: { type: 'sawtooth' }, envelope: { attack: 0.2, decay: 0.3, sustain: 0.5, release: 0.5 } });
+    synth.connect(g); toWet(g);
+    let loop;
+    function cry() {
+      try {
+        synth.triggerAttack('D5');
+        setTimeout(() => { try { synth.frequency.rampTo('A4', 0.4); } catch(e) {} }, 300);
+        setTimeout(() => { try { synth.triggerRelease(); } catch(e) {} }, 800);
+      } catch(e) {}
+    }
+    return {
+      gain: g,
+      start() { loop = setInterval(cry, 3000 + Math.random() * 5000); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.5, 0.5); },
+    };
+  })();
+
+  // ── Dripping Cave ─────────────────────────────────────────────
+  attribs.dripping_cave = (() => {
+    const g = new Tone.Gain(0);
+    const synth = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.001, decay: 0.3, sustain: 0, release: 0.5 } });
+    synth.connect(g); toWet(g);
+    let loop;
+    function drip() {
+      if (Math.random() < 0.6) {
+        const notes = ['C5', 'E5', 'G5', 'A5'];
+        try { synth.triggerAttackRelease(notes[Math.floor(Math.random() * notes.length)], '32n'); } catch(e) {}
+      }
+    }
+    return {
+      gain: g,
+      start() { loop = setInterval(drip, 600 + Math.random() * 1200); },
+      stop() { clearInterval(loop); },
+      setVolume(v) { g.gain.rampTo(v * 0.45, 0.5); },
+    };
+  })();
+
+  // ── Seagulls placeholder ──────────────────────────────────────
+
+  // ── State management ─────────────────────────────────────────
+  const enabledAttributes = new Set();
+  const attributeVolumes = {};
+
+  function applyAttribute(name, enabled, volume) {
+    if (!attribs[name]) return;
+    attributeVolumes[name] = volume !== undefined ? volume : (attributeVolumes[name] || 0.7);
+    if (enabled && !enabledAttributes.has(name)) {
+      enabledAttributes.add(name);
+      attribs[name].setVolume(0);
+      if (attribs[name].start) attribs[name].start();
+      setTimeout(() => {
+        if (enabledAttributes.has(name)) attribs[name].setVolume(attributeVolumes[name]);
+      }, 100);
+    } else if (!enabled && enabledAttributes.has(name)) {
+      enabledAttributes.delete(name);
+      attribs[name].setVolume(0);
+    }
+    if (enabled) attribs[name].setVolume(attributeVolumes[name]);
+  }
+
+  function applyPhaseParams(reverb, lpfFreq, pitch) {
+    reverb.wet.rampTo(reverb, 1);
+    lpf.frequency.rampTo(lpfFreq, 1);
+    pitchShift.pitch = pitch;
+  }
+
+  // ── Message handler ──────────────────────────────────────────
+  async function ensureStarted() {
+    if (!started) {
+      await Tone.start();
+      started = true;
+      post({ type: 'STARTED' });
+    }
+  }
+
+  function applyState(state) {
+    if (!state) return;
+    if (state.masterVolume !== undefined) {
+      masterVolume = state.masterVolume;
+      masterGain.gain.rampTo(muted ? 0 : masterVolume, 0.3);
+    }
+    if (state.muted !== undefined) {
+      muted = state.muted;
+      masterGain.gain.rampTo(muted ? 0 : masterVolume, 0.3);
+    }
+    if (state.phaseParams) {
+      reverb.wet.rampTo(state.phaseParams.reverb, 1);
+      lpf.frequency.rampTo(state.phaseParams.lpfFreq, 1);
+      pitchShift.pitch = state.phaseParams.masterPitch || 0;
+    }
+    if (state.attributes) {
+      for (const [name, attr] of Object.entries(state.attributes)) {
+        applyAttribute(name, attr.enabled, attr.volume);
+      }
+    }
+  }
+
+  function handleMsg(data) {
+    let msg;
+    try { msg = JSON.parse(data); } catch { return; }
+
+    switch (msg.type) {
+      case 'START':
+        ensureStarted().then(() => applyState(msg.state));
+        break;
+      case 'SET_STATE':
+        if (!started) ensureStarted().then(() => applyState(msg.state));
+        else applyState(msg.state);
+        break;
+      case 'SET_ATTRIBUTE':
+        applyAttribute(msg.name, msg.enabled, msg.volume);
+        break;
+      case 'SET_ATTRIBUTE_VOLUME':
+        if (attribs[msg.name]) {
+          attributeVolumes[msg.name] = msg.value;
+          if (enabledAttributes.has(msg.name)) attribs[msg.name].setVolume(msg.value);
+        }
+        break;
+      case 'SET_MASTER_VOLUME':
+        masterVolume = msg.value;
+        if (!muted) masterGain.gain.rampTo(masterVolume, 0.3);
+        break;
+      case 'SET_MUTED':
+        muted = msg.muted;
+        masterGain.gain.rampTo(muted ? 0 : masterVolume, 0.3);
+        break;
+      case 'SET_PHASE_PARAMS':
+        if (msg.reverb !== undefined) reverb.wet.rampTo(msg.reverb, 1);
+        if (msg.lpfFreq !== undefined) lpf.frequency.rampTo(msg.lpfFreq, 1);
+        if (msg.masterPitch !== undefined) pitchShift.pitch = msg.masterPitch;
+        break;
+      case 'STOP_ALL':
+        enabledAttributes.forEach(name => {
+          if (attribs[name]) { attribs[name].setVolume(0); }
+        });
+        enabledAttributes.clear();
+        break;
+    }
+  }
+
+  // ── Bridge ───────────────────────────────────────────────────
+  function post(msg) {
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+    }
+  }
+
+  window.addEventListener('message', e => handleMsg(e.data));
+  document.addEventListener('message', e => handleMsg(e.data));
+
+  // Signal ready
+  setTimeout(() => post({ type: 'READY' }), 500);
+})();
+</script>
+</body>
+</html>
