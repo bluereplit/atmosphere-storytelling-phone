@@ -61,8 +61,16 @@ export function startSuperCollider(): void {
   const startupScript = join(SC_DIR, "startup.scd");
   logger.info({ startupScript }, "Starting SuperCollider");
 
+  // On Raspberry Pi OS Bookworm, PipeWire holds the audio device.
+  // Setting SC_USE_PIPEWIRE_JACK=1 wraps sclang with pw-jack so SuperCollider
+  // connects through PipeWire's JACK compatibility layer instead of ALSA.
+  const usePwJack = process.env.SC_USE_PIPEWIRE_JACK === "1";
+  const cmd: string = usePwJack ? "pw-jack" : "sclang";
+  const args: string[] = usePwJack ? ["sclang", startupScript] : [startupScript];
+  if (usePwJack) logger.info("PipeWire JACK mode enabled (SC_USE_PIPEWIRE_JACK=1)");
+
   try {
-    scProcess = spawn("sclang", [startupScript], {
+    scProcess = spawn(cmd, args, {
       stdio: ["pipe", "pipe", "pipe"],
     });
 

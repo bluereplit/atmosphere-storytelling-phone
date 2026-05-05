@@ -28,69 +28,133 @@ sclang -v
 
 ## 2. Configure Audio Output
 
-### Using HDMI audio (recommended for projection setups)
+> **Raspberry Pi OS Bookworm note:**
+> raspi-config's audio menu shows the error *"raspi-config cannot configure audio when PulseAudio or PipeWire are in use"* because Bookworm ships with **PipeWire** running by default.
+> **Do not use raspi-config for audio on Bookworm.** Use the methods below instead.
 
-Force HDMI audio output via raspi-config:
+---
+
+### Bookworm — select audio output with `wpctl`
+
+`wpctl` is the WirePlumber control tool that ships with Bookworm.
+
+List all available audio sinks:
 ```bash
-sudo raspi-config
-# → System Options → Audio → HDMI
+wpctl status
+# Look for the "Sinks:" section, e.g.:
+#   *  51. Built-in Audio Stereo         [vol: 1.00]
+#      52. HDMI / DisplayPort            [vol: 1.00]
+#      53. USB Audio Headphones          [vol: 1.00]
 ```
 
-Or set it in `/boot/config.txt` (add or uncomment):
+Set the default sink by its ID number:
+```bash
+wpctl set-default 52   # e.g. to use HDMI
+```
+
+Make the change permanent (survives reboot):
+```bash
+# Find the node name shown by wpctl status, e.g. "alsa_output.pci-0000_00_1f.3.hdmi-stereo"
+# Then add to ~/.config/wireplumber/main.lua.d/51-default-sink.lua:
+mkdir -p ~/.config/wireplumber/main.lua.d
+cat > ~/.config/wireplumber/main.lua.d/51-default-sink.lua << 'EOF'
+rule = {
+  matches = { { { "node.name", "=", "alsa_output.pci-0000_00_1f.3.hdmi-stereo" } } },
+  apply_properties = { ["priority.session"] = 1000 },
+}
+table.insert(alsa_monitor.rules, rule)
+EOF
+```
+
+Or simply set volume and default via the **taskbar volume plugin** (right-click the speaker icon on the Pi desktop → Audio Output → select HDMI or headphones).
+
+---
+
+### HDMI audio — `/boot/firmware/config.txt`
+
+> **Path changed in Bookworm:** the config file is now `/boot/firmware/config.txt`, not `/boot/config.txt`.
+
+To force HDMI audio output unconditionally, add or uncomment in `/boot/firmware/config.txt`:
 ```
 hdmi_drive=2
 ```
 
-### Using USB audio interface
+Then reboot. This works regardless of PipeWire.
 
-List available audio devices:
+---
+
+### USB audio interface
+
+List available ALSA devices (still works alongside PipeWire):
 ```bash
 aplay -l
 ```
 
-Set the USB device as default in `~/.asoundrc`:
-```
-pcm.!default {
-    type hw
-    card 1
-}
-ctl.!default {
-    type hw
-    card 1
-}
-```
-Replace `card 1` with the card number from `aplay -l`.
+PipeWire will automatically expose the USB device as a sink. Select it with `wpctl set-default <id>` as shown above.
 
-### Using 3.5mm jack
+If you need ALSA direct access (e.g. for SuperCollider bypassing PipeWire), see Section 4.
 
+---
+
+### 3.5mm jack (Bookworm)
+
+The 3.5mm jack is exposed by PipeWire as a sink called something like `Built-in Audio Analog Stereo`. Select it with:
 ```bash
-sudo raspi-config
-# → System Options → Audio → Headphones
+wpctl set-default <id>   # id from wpctl status
 ```
 
 ---
 
 ## 3. Test SuperCollider Headless
 
-SuperCollider can run without a display (headless). Test it:
+SuperCollider can run without a display. On **Bookworm with PipeWire**, use `pw-jack` so SuperCollider connects through PipeWire's JACK compatibility layer instead of fighting PipeWire for the ALSA device:
 
 ```bash
-# Start the synthesis server directly
-scsynth -u 57110 -a 1024 -i 0 -o 2 &
+sudo apt install -y pipewire-jack
+
+# Start scsynth via pw-jack
+pw-jack scsynth -u 57110 -a 1024 -i 0 -o 2 &
 
 # In another terminal, test with sclang
-echo '{ SinOsc.ar(440, 0, 0.1) ! 2 }.play' | sclang
+pw-jack sclang -e '{ SinOsc.ar(440, 0, 0.1) ! 2 }.play; 2.wait; 0.exit'
 ```
 
-If you hear a sine tone, the audio is working.
+If you hear a sine tone, audio is working.
+
+On **Bullseye** (no PipeWire), the original ALSA approach works directly:
+```bash
+scsynth -u 57110 -a 1024 -i 0 -o 2 &
+```
 
 ---
 
-## 4. Configure SuperCollider for ALSA (No JACK)
+## 4. SuperCollider Audio Backend — Bookworm vs Bullseye
+
+### Bookworm: use `pw-jack` (recommended)
+
+PipeWire holds the audio device. SuperCollider must connect through PipeWire's JACK compatibility layer using `pw-jack`. The API server launches SuperCollider automatically — set the environment variable to enable `pw-jack` mode:
+
+```bash
+export SC_USE_PIPEWIRE_JACK=1
+```
+
+Or add it to `/etc/systemd/system/atmosphere.service` (see Section 8).
+
+With this flag set, the API server prepends `pw-jack` when spawning `sclang`:
+```
+pw-jack sclang artifacts/api-server/sc/startup.scd
+```
+
+Install the JACK compatibility package once:
+```bash
+sudo apt install -y pipewire-jack
+```
+
+### Bullseye / ALSA direct (no PipeWire)
 
 The system uses SuperCollider's built-in ALSA support. No JACK is required.
 
-Create or edit `~/.config/SuperCollider/startup.scd` (this is separate from the system's startup file):
+Create or edit `~/.config/SuperCollider/startup.scd`:
 
 ```supercollider
 Server.default.options.device = nil; // Use system default ALSA device
@@ -114,8 +178,12 @@ export SC_AUDIO_DEVICE="hw:1,0"
 Start the Node.js backend (which manages SuperCollider automatically):
 
 ```bash
-cd /path/to/workspace
-PORT=3000 OSC_PORT=57120 pnpm --filter @workspace/api-server run start
+cd /home/pi/atmosphere-storytelling-system
+# Bookworm:
+SC_USE_PIPEWIRE_JACK=1 PORT=8080 pnpm --filter @workspace/api-server run start
+
+# Bullseye:
+PORT=8080 pnpm --filter @workspace/api-server run start
 ```
 
 SuperCollider will be launched automatically. Check the logs for:
@@ -128,7 +196,7 @@ SynthDefs loaded
 
 ## 6. Storyteller Voice — ALSA Loopback Setup
 
-The **Storyteller Voice** feature lets the narrator's microphone be mixed directly into the SuperCollider soundscape.  The browser dashboard captures the mic, streams audio to the API server over WebSocket, and the server pipes it into SuperCollider via an ALSA virtual loopback device.
+The **Storyteller Voice** feature lets the narrator's microphone be mixed directly into the SuperCollider soundscape. The browser dashboard captures the mic, streams audio to the API server over WebSocket, and the server pipes it into SuperCollider via an ALSA virtual loopback device.
 
 ### How it works
 
@@ -140,22 +208,37 @@ Browser mic → WebSocket /ws/voice → aplay → ALSA Loopback (playback side)
 
 ### Enable the ALSA loopback
 
-Run the included setup script once after each boot (or persist it across reboots):
+**After running `install.sh` the loopback is enabled automatically.** `install.sh` installs and enables a dedicated systemd service (`alsa-loopback.service`) that loads `snd-aloop` every time the Pi boots — no manual steps are needed.
 
+Check the service status at any time:
+
+```bash
+sudo systemctl status alsa-loopback
+journalctl -u alsa-loopback --no-pager
+```
+
+#### Manual setup (if you skipped `install.sh`)
+
+**Option A — one-shot (current boot only):**
 ```bash
 sudo bash artifacts/api-server/scripts/setup-alsa-loopback.sh
 ```
 
-To load the loopback module automatically at boot:
+**Option B — persistent via systemd (recommended):**
+```bash
+sudo cp artifacts/api-server/scripts/alsa-loopback.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now alsa-loopback
+```
+
+**Option C — kernel modules list:**
 ```bash
 echo snd-aloop | sudo tee -a /etc/modules
 ```
 
 ### Configure SuperCollider to use the loopback
 
-SuperCollider needs to read from the **capture side** of the loopback (card `Loopback`, device 1).  The easiest way is to set `numInputBusChannels = 2` (already done in `startup.scd`) and launch SuperCollider with the loopback card.
-
-To specify a separate input device for SuperCollider without changing the output, create a virtual ALSA device in `~/.asoundrc` that uses `asym`:
+SuperCollider needs to read from the **capture side** of the loopback (card `Loopback`, device 1). Create a virtual ALSA device in `~/.asoundrc` that uses `asym`:
 
 ```
 # ~/.asoundrc — asymmetric device: Loopback capture + main output
@@ -182,17 +265,12 @@ export VOICE_LOOPBACK_DEVICE="hw:Loopback,0"   # default
 
 ### Tuning the voice relay ring buffer
 
-The relay holds unplayed PCM chunks in a ring buffer while `aplay` stdin is draining. You can adjust the buffer capacity without redeploying:
-
 ```bash
 # VOICE_RING_CAPACITY — number of PCM chunks to buffer under back-pressure
 # Default: 100 (~9 s at a 4096-sample chunk / 44100 Hz)
 # Recommended range: 10–1000
-# Increase on slow Pi hardware or high-latency networks; decrease on very constrained RAM.
 export VOICE_RING_CAPACITY=100
 ```
-
-The server validates this value at startup and logs a warning if it is outside the 10–1000 range.
 
 ### Install alsa-utils
 
@@ -205,36 +283,49 @@ sudo apt install -y alsa-utils
 
 ## 7. Bluetooth Microphone Setup
 
-The **Pi Bluetooth Mic** mode lets the storyteller use a Bluetooth microphone physically paired to the Raspberry Pi. Audio is captured locally using `arecord` and piped directly to the ALSA loopback — no browser mic permission is required and network latency is eliminated.
+The **Pi Bluetooth Mic** mode lets the storyteller use a Bluetooth microphone physically paired to the Raspberry Pi.
 
-### What you need
+### Bookworm (PipeWire) — recommended approach
 
-- A Bluetooth microphone (e.g. a wireless headset or lapel mic transmitter)
-- `bluez` and `bluez-alsa` (the ALSA-only Bluetooth audio backend for Pi OS Lite)
-- `alsa-utils` for `arecord`
-
-### 1. Install bluez-alsa
+On Bookworm, PipeWire manages Bluetooth audio natively via `bluez`. No `bluez-alsa` is needed.
 
 ```bash
-sudo apt update
-sudo apt install -y bluez bluez-alsa-utils alsa-utils
+sudo apt install -y bluez pulseaudio-utils   # pactl for sink listing
+sudo systemctl enable --now bluetooth
 ```
 
-Enable and start the bluealsa service:
+Pair the mic:
+```bash
+bluetoothctl
+power on
+agent on
+scan on
+# wait for address to appear, then:
+pair XX:XX:XX:XX:XX:XX
+trust XX:XX:XX:XX:XX:XX
+connect XX:XX:XX:XX:XX:XX
+quit
+```
+
+PipeWire will expose the Bluetooth mic as an ALSA capture source. List devices:
+```bash
+arecord -l
+# or
+wpctl status   # look under "Sources:"
+```
+
+### Bullseye (no PipeWire) — bluez-alsa
+
+On Bullseye, use `bluez-alsa` for ALSA-compatible Bluetooth audio:
 
 ```bash
+sudo apt install -y bluez bluez-alsa-utils alsa-utils
 sudo systemctl enable --now bluetooth
 sudo systemctl enable --now bluealsa
 ```
 
-> **Note:** `bluez-alsa` (also called `bluealsa`) provides the ALSA-compatible interface for Bluetooth devices without requiring PulseAudio or PipeWire. On Pi OS Lite this is the minimal viable path.
-
-### 2. Create the ALSA Bluetooth config
-
-Add a virtual capture device so `arecord` can see the Bluetooth mic by a stable name. Edit `~/.asoundrc`:
-
+Add a virtual capture device in `~/.asoundrc`:
 ```
-# Bluetooth microphone capture device
 pcm.bt_mic {
     type plug
     slave.pcm {
@@ -249,106 +340,22 @@ ctl.bt_mic {
 }
 ```
 
-Or rely on the auto-generated `hw:` device that bluealsa creates and select it by name in the dashboard.
-
-### 3. Pair the Bluetooth mic
+### Pair and test (both OS versions)
 
 ```bash
-bluetoothctl
-# Inside bluetoothctl:
-power on
-agent on
-scan on
-# Wait for your mic's address to appear, then:
-pair XX:XX:XX:XX:XX:XX
-trust XX:XX:XX:XX:XX:XX
-connect XX:XX:XX:XX:XX:XX
-quit
+arecord -D hw:2,0 -f S16_LE -r 44100 -c 1 -d 5 /tmp/test.wav && aplay /tmp/test.wav
 ```
 
-Verify the mic is connected:
-
-```bash
-bluetoothctl info XX:XX:XX:XX:XX:XX
-# Look for: Connected: yes
-```
-
-### 4. Verify arecord can see the device
-
-```bash
-arecord -l
-```
-
-You should see an entry like:
-
-```
-card 2: Device [Headset Mono], device 0: Bluetooth SCO [Bluetooth SCO]
-```
-
-This gives you the ALSA device ID (e.g. `hw:2,0`) to select in the dashboard.
-
-### 5. Test capture before the show
-
-```bash
-# Record 5 seconds and play back
-arecord -D hw:2,0 -f S16_LE -r 44100 -c 1 -d 5 /tmp/test.wav
-aplay /tmp/test.wav
-```
-
-If you hear your voice, the mic is working correctly.
-
-### 6. Use the dashboard source selector
+### Dashboard usage
 
 1. Open the **Storyteller Voice** panel in the dashboard.
 2. Click **Pi Bluetooth Mic** in the source selector.
-3. The device dropdown will list all ALSA capture devices. Select the Bluetooth mic.
-4. Press **Start Capture** — the server will run `arecord` on the Pi and pipe audio into SuperCollider.
-5. A blue "Capturing locally" indicator confirms audio is flowing.
-
-If the mic disconnects mid-show, the dashboard shows a "Capture lost" error with recovery guidance. Reconnect the mic via `bluetoothctl connect XX:XX:XX:XX:XX:XX` and press **Start Capture** again.
-
-### 7. Auto-reconnect on boot (optional)
-
-To make the Bluetooth mic connect automatically at boot, add a udev rule or use a systemd service:
-
-```bash
-sudo nano /etc/systemd/system/bt-mic-connect.service
-```
-
-```ini
-[Unit]
-Description=Connect Bluetooth mic at boot
-After=bluetooth.target bluealsa.service
-Wants=bluetooth.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/bluetoothctl connect XX:XX:XX:XX:XX:XX
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl enable bt-mic-connect
-```
-
-### Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| `arecord -l` shows no Bluetooth device | Check `systemctl status bluealsa`; ensure mic is connected via `bluetoothctl` |
-| `bluealsa` not found | Run `sudo apt install bluez-alsa-utils` |
-| "Capture stopped unexpectedly" in dashboard | Bluetooth mic disconnected — reconnect and press Start Capture |
-| Audio crackles or drops | Bluetooth SCO profile has narrow bandwidth; move mic closer to Pi or reduce interference |
-| `hci0: SCO connect` errors in `dmesg` | Some USB BT dongles don't support SCO; use the Pi's built-in Bluetooth or a HFP-compatible dongle |
+3. Select the Bluetooth mic from the device dropdown.
+4. Press **Start Capture**.
 
 ---
 
 ## 8. Auto-launch on Boot (systemd)
-
-Create a systemd service to start the system automatically:
 
 ```bash
 sudo nano /etc/systemd/system/atmosphere.service
@@ -362,10 +369,12 @@ After=network.target sound.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/workspace
-Environment=PORT=3000
+WorkingDirectory=/home/pi/atmosphere-storytelling-system
+Environment=PORT=8080
 Environment=OSC_PORT=57120
 Environment=NODE_ENV=production
+# Bookworm: uncomment the next line to run SuperCollider via PipeWire JACK
+# Environment=SC_USE_PIPEWIRE_JACK=1
 # Optional: tune the voice relay ring buffer (default 100, range 10-1000)
 # Environment=VOICE_RING_CAPACITY=100
 ExecStart=/usr/bin/node --enable-source-maps artifacts/api-server/dist/index.mjs
@@ -378,7 +387,6 @@ StandardError=journal
 WantedBy=multi-user.target
 ```
 
-Enable and start:
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable atmosphere
@@ -393,20 +401,20 @@ journalctl -u atmosphere -f
 
 ---
 
-## 8. Launch the Visual Display on Boot
-
-The visual display (Python + pygame) runs separately and connects to the system's HDMI output.
+## 9. Launch the Visual Display on Boot
 
 For X11 (default Pi desktop):
 ```bash
-# Add to ~/.config/autostart/atmosphere-display.desktop
+mkdir -p ~/.config/autostart
+cat > ~/.config/autostart/atmosphere-display.desktop << 'EOF'
 [Desktop Entry]
 Type=Application
 Name=Atmosphere Display
-Exec=/home/pi/workspace/start_display.sh
+Exec=/home/pi/atmosphere-storytelling-system/start_display.sh
+EOF
 ```
 
-For framebuffer/KMS without X11 (headless display):
+For KMS framebuffer without X11 (headless display):
 ```bash
 export SDL_VIDEODRIVER=kmsdrm
 export SDL_AUDIODRIVER=dummy
@@ -421,12 +429,16 @@ See `start_display.sh` in the workspace root for a complete launch script.
 
 | Problem | Solution |
 |---------|----------|
+| `raspi-config cannot configure audio` | Expected on Bookworm — use `wpctl set-default <id>` or the taskbar plugin instead |
 | `sclang not found` | Run `sudo apt install supercollider` |
-| No audio output | Check `aplay -l` and set the correct ALSA device |
+| SuperCollider: `device not found` or ALSA error on Bookworm | Install `pipewire-jack` and set `SC_USE_PIPEWIRE_JACK=1` |
+| No audio output | Run `wpctl status` (Bookworm) or `aplay -l` (Bullseye) and confirm the correct sink is default |
 | SuperCollider crashes | Check Pi memory: `free -h`; increase `memSize` in startup.scd |
 | High CPU on Pi 3 | Increase `blockSize` to 1024 in startup.scd |
 | Clicking/glitching | Increase `blockSize` to 1024 or use a USB audio interface |
-| JACK errors | Ignore — the system uses ALSA directly, not JACK |
+| `JACK errors` on Bullseye | Ignore — the system uses ALSA directly, not JACK |
+| Bluetooth mic not showing in `arecord -l` (Bookworm) | Ensure mic is connected: `bluetoothctl info XX:XX:XX:XX:XX:XX` |
+| Bluetooth mic not showing (Bullseye) | Check `systemctl status bluealsa`; re-run `bluetoothctl connect` |
 
 ---
 
@@ -435,4 +447,4 @@ See `start_display.sh` in the workspace root for a complete launch script.
 - **USB audio interface** (e.g., Focusrite Scarlett Solo, Behringer UMC22) provides much better quality than the Pi's built-in 3.5mm audio
 - **HiFiBerry DAC+** is an excellent Pi HAT for high-quality stereo output
 - For projection shows, **HDMI audio** passed through to a receiver or mixer is often the cleanest path
-- Set system volume to 80%: `amixer set Master 80%`
+- Set system volume: `wpctl set-volume @DEFAULT_AUDIO_SINK@ 80%` (Bookworm) or `amixer set Master 80%` (Bullseye)
