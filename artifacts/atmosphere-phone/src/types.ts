@@ -38,6 +38,25 @@ export interface AtmosphereState {
 
 export type AppMode = 'presentation' | 'controller';
 
+// Commands: controller → relay → presentation
+export type CmdMessage =
+  | { type: 'CMD_SET_PHASE'; phase: Phase }
+  | { type: 'CMD_SET_THEME'; theme: Theme }
+  | { type: 'CMD_SET_INTENSITY'; value: number }
+  | { type: 'CMD_SET_MASTER_VOLUME'; value: number }
+  | { type: 'CMD_SET_MUTED'; muted: boolean }
+  | { type: 'CMD_TOGGLE_ATTRIBUTE'; name: AttributeName }
+  | { type: 'CMD_SET_ATTRIBUTE_ENABLED'; name: AttributeName; enabled: boolean }
+  | { type: 'CMD_SET_ATTRIBUTE_VOLUME'; name: AttributeName; value: number }
+  | { type: 'CMD_SET_PHASE_PARAMS'; params: Partial<PhaseParams> }
+  | { type: 'CMD_VOICE_DATA'; data: string; mimeType: string };
+
+// State broadcast: presentation → relay → controllers
+export interface StateBroadcast {
+  type: 'STATE';
+  state: AtmosphereState;
+}
+
 export interface NetworkMessage {
   type: string;
   [key: string]: unknown;

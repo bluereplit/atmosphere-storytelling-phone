@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useAtmosphere } from '@/src/context/StateContext';
+import { useNetwork } from '@/src/context/NetworkContext';
 import { SliderControl } from '@/src/components/ui/SliderControl';
 import { ATTRIBUTE_LABELS, ATTRIBUTE_CATEGORIES } from '@/src/themes.config';
 import type { AttributeName } from '@/src/types';
@@ -18,19 +19,24 @@ export default function SoundsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { state, toggleAttribute, setAttributeVolume } = useAtmosphere();
+  const { sendCommand } = useNetwork();
   const [expandedCat, setExpandedCat] = useState<string | null>('Nature');
   const [expandedAttr, setExpandedAttr] = useState<AttributeName | null>(null);
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const bottomPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 80;
 
-  const toggleCat = (cat: string) => setExpandedCat(v => v === cat ? null : cat);
-  const toggleAttrExpand = (name: AttributeName) => setExpandedAttr(v => v === name ? null : name);
-
   const handleToggle = useCallback((name: AttributeName) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const next = !state.attributes[name]?.enabled;
     toggleAttribute(name);
-  }, [toggleAttribute]);
+    sendCommand({ type: 'CMD_TOGGLE_ATTRIBUTE', name });
+  }, [toggleAttribute, sendCommand, state.attributes]);
+
+  const handleVolume = useCallback((name: AttributeName, value: number) => {
+    setAttributeVolume(name, value);
+    sendCommand({ type: 'CMD_SET_ATTRIBUTE_VOLUME', name, value });
+  }, [setAttributeVolume, sendCommand]);
 
   const enabledCount = Object.values(state.attributes).filter(a => a.enabled).length;
 
@@ -54,13 +60,18 @@ export default function SoundsScreen() {
         return (
           <View key={cat} style={[styles.categoryBlock, { borderColor: colors.border }]}>
             <TouchableOpacity
-              style={[styles.catHeader, { backgroundColor: isOpen ? colors.surfaceElevated || colors.surface : colors.surface }]}
-              onPress={() => toggleCat(cat)}
+              style={[styles.catHeader, {
+                backgroundColor: isOpen ? colors.surfaceElevated || colors.surface : colors.surface,
+              }]}
+              onPress={() => setExpandedCat(v => v === cat ? null : cat)}
               activeOpacity={0.8}
             >
               <View style={styles.catLeft}>
-                <Feather name={CATEGORY_ICONS[cat] as any} size={16} color={isOpen ? colors.primary : colors.mutedForeground} />
-                <Text style={[styles.catTitle, { color: isOpen ? colors.text : colors.textSecondary }]}>{cat}</Text>
+                <Feather name={CATEGORY_ICONS[cat] as any} size={16}
+                  color={isOpen ? colors.primary : colors.mutedForeground} />
+                <Text style={[styles.catTitle, { color: isOpen ? colors.text : colors.textSecondary }]}>
+                  {cat}
+                </Text>
                 {activeInCat > 0 && (
                   <View style={[styles.activeBadge, { backgroundColor: colors.primary }]}>
                     <Text style={styles.activeBadgeText}>{activeInCat}</Text>
@@ -82,7 +93,10 @@ export default function SoundsScreen() {
                       <TouchableOpacity
                         style={[styles.attrRow, { borderColor: colors.borderSubtle || colors.border }]}
                         onPress={() => handleToggle(name)}
-                        onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); toggleAttrExpand(name); }}
+                        onLongPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                          setExpandedAttr(v => v === name ? null : name);
+                        }}
                         activeOpacity={0.8}
                       >
                         <View style={[styles.attrToggle, {
@@ -91,25 +105,37 @@ export default function SoundsScreen() {
                         }]}>
                           {isEnabled && <Feather name="check" size={10} color={colors.background} />}
                         </View>
-                        <Text style={[styles.attrName, { color: isEnabled ? colors.text : colors.textSecondary }]}>
+                        <Text style={[styles.attrName, {
+                          color: isEnabled ? colors.text : colors.textSecondary,
+                        }]}>
                           {ATTRIBUTE_LABELS[name]}
                         </Text>
                         {isEnabled && (
                           <View style={[styles.volBar, { backgroundColor: colors.border }]}>
-                            <View style={[styles.volFill, { width: `${(attr?.volume ?? 0.7) * 100}%`, backgroundColor: colors.primary }]} />
+                            <View style={[styles.volFill, {
+                              width: `${(attr?.volume ?? 0.7) * 100}%`,
+                              backgroundColor: colors.primary,
+                            }]} />
                           </View>
                         )}
-                        <TouchableOpacity style={styles.expandBtn} onPress={() => toggleAttrExpand(name)}>
-                          <Feather name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color={colors.mutedForeground} />
+                        <TouchableOpacity
+                          style={styles.expandBtn}
+                          onPress={() => setExpandedAttr(v => v === name ? null : name)}
+                        >
+                          <Feather name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14}
+                            color={colors.mutedForeground} />
                         </TouchableOpacity>
                       </TouchableOpacity>
 
                       {isExpanded && (
-                        <View style={[styles.attrDetail, { backgroundColor: colors.surfaceElevated || colors.muted, borderColor: colors.borderSubtle || colors.border }]}>
+                        <View style={[styles.attrDetail, {
+                          backgroundColor: colors.surfaceElevated || colors.muted,
+                          borderColor: colors.borderSubtle || colors.border,
+                        }]}>
                           <SliderControl
                             label="Volume"
                             value={attr?.volume ?? 0.7}
-                            onValueChange={(v) => setAttributeVolume(name, v)}
+                            onValueChange={(v) => handleVolume(name, v)}
                             color={colors.primary}
                           />
                         </View>

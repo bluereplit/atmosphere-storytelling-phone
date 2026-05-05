@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
-import type { AtmosphereState, Phase, Theme, AttributeName, PhaseParams } from '../types';
+import type { AtmosphereState, Phase, Theme, AttributeName, PhaseParams, CmdMessage } from '../types';
 import { DEFAULT_STATE } from '../defaultState';
 import { THEME_DEFAULT_ATTRIBUTES, PHASE_DEFAULT_PARAMS, ALL_ATTRIBUTES } from '../themes.config';
 
@@ -15,6 +15,7 @@ interface StateContextValue {
   setAttributeVolume: (name: AttributeName, v: number) => void;
   setPhaseParams: (p: Partial<PhaseParams>) => void;
   applyFullState: (s: AtmosphereState) => void;
+  applyCommand: (cmd: CmdMessage) => void;
   onStateChange: (cb: (s: AtmosphereState) => void) => () => void;
 }
 
@@ -109,6 +110,46 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
     notify(s);
   }, [notify]);
 
+  // Presentation role: apply incoming commands from controller
+  const applyCommand = useCallback((cmd: CmdMessage) => {
+    switch (cmd.type) {
+      case 'CMD_SET_PHASE':
+        update(prev => ({ ...prev, phase: cmd.phase, phaseParams: PHASE_DEFAULT_PARAMS[cmd.phase] }));
+        break;
+      case 'CMD_SET_THEME':
+        update(prev => {
+          const defaults = THEME_DEFAULT_ATTRIBUTES[cmd.theme];
+          const attributes = { ...prev.attributes };
+          for (const name of ALL_ATTRIBUTES) {
+            attributes[name] = { ...attributes[name], enabled: defaults.includes(name) };
+          }
+          return { ...prev, theme: cmd.theme, attributes };
+        });
+        break;
+      case 'CMD_SET_INTENSITY':
+        update(prev => ({ ...prev, intensity: cmd.value }));
+        break;
+      case 'CMD_SET_MASTER_VOLUME':
+        update(prev => ({ ...prev, masterVolume: cmd.value }));
+        break;
+      case 'CMD_SET_MUTED':
+        update(prev => ({ ...prev, muted: cmd.muted }));
+        break;
+      case 'CMD_TOGGLE_ATTRIBUTE':
+        toggleAttribute(cmd.name);
+        break;
+      case 'CMD_SET_ATTRIBUTE_ENABLED':
+        setAttributeEnabled(cmd.name, cmd.enabled);
+        break;
+      case 'CMD_SET_ATTRIBUTE_VOLUME':
+        setAttributeVolume(cmd.name, cmd.value);
+        break;
+      case 'CMD_SET_PHASE_PARAMS':
+        setPhaseParams(cmd.params);
+        break;
+    }
+  }, [update, toggleAttribute, setAttributeEnabled, setAttributeVolume, setPhaseParams]);
+
   const onStateChange = useCallback((cb: (s: AtmosphereState) => void) => {
     listenersRef.current.add(cb);
     return () => { listenersRef.current.delete(cb); };
@@ -118,7 +159,7 @@ export function StateProvider({ children }: { children: React.ReactNode }) {
     <StateContext.Provider value={{
       state, setPhase, setTheme, setIntensity, setMasterVolume,
       setMuted, toggleAttribute, setAttributeEnabled, setAttributeVolume,
-      setPhaseParams, applyFullState, onStateChange,
+      setPhaseParams, applyFullState, applyCommand, onStateChange,
     }}>
       {children}
     </StateContext.Provider>

@@ -1,14 +1,17 @@
 /**
  * Atmosphere Phone — WebSocket Relay Server
  *
- * Run this on any computer on your WiFi:
+ * Architecture:
+ *   - Presentation phone registers as 'presentation' role (authoritative state holder)
+ *   - Controller phones register as 'controller' role (send commands, receive state)
+ *   - Relay routes CMD_* messages from controllers → presentation
+ *   - Relay routes STATE messages from presentation → all controllers
+ *   - Relay notifies presentation when controllers connect/disconnect
+ *
+ * Run on any WiFi-connected machine (laptop, Pi, etc.):
  *   node relay-server/index.js
  *
- * Then set the relay URL in the app to:
- *   ws://<your-laptop-ip>:3001
- *
- * Both phones (Presentation + Controller) connect to this relay.
- * The relay routes state syncs and commands between them.
+ * Then set relay URL in both phones to: ws://<machine-ip>:3001
  */
 
 const http = require('http');
@@ -20,7 +23,12 @@ const PORT = process.env.PORT || 3001;
 const server = http.createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', clients: wss.clients.size }));
+    res.end(JSON.stringify({
+      status: 'ok',
+      clients: wss.clients.size,
+      presentation: presentationWs !== null,
+      controllers: controllerClients.size,
+    }));
     return;
   }
   res.writeHead(404);
@@ -32,84 +40,121 @@ const wss = new WebSocketServer({ server });
 let presentationWs = null;
 const controllerClients = new Set();
 
-function broadcast(clients, data) {
-  clients.forEach(ws => {
-    if (ws.readyState === ws.OPEN) {
-      ws.send(typeof data === 'string' ? data : JSON.stringify(data));
-    }
-  });
+function sendTo(ws, data) {
+  if (ws && ws.readyState === ws.OPEN) {
+    ws.send(typeof data === 'string' ? data : JSON.stringify(data));
+  }
+}
+
+function broadcastToControllers(data) {
+  controllerClients.forEach(ws => sendTo(ws, data));
 }
 
 wss.on('connection', (ws, req) => {
-  console.log(`[relay] client connected from ${req.socket.remoteAddress}`);
+  const remoteIp = req.socket.remoteAddress;
+  console.log(`[relay] Client connected from ${remoteIp}`);
+  ws.isAlive = true;
+
+  ws.on('pong', () => { ws.isAlive = true; });
 
   ws.on('message', (rawData) => {
     let msg;
     try { msg = JSON.parse(rawData.toString()); } catch { return; }
 
-    // Role registration
-    if (msg.role === 'presentation') {
-      ws.role = 'presentation';
-      presentationWs = ws;
-      console.log('[relay] Presentation phone registered');
-      // Notify controllers
-      broadcast(controllerClients, { type: 'PRESENTATION_CONNECTED' });
-      return;
-    }
-
-    if (msg.role === 'controller') {
-      ws.role = 'controller';
-      controllerClients.add(ws);
-      console.log('[relay] Controller phone registered');
-      // Notify controller if presentation is already live
-      if (presentationWs && presentationWs.readyState === presentationWs.OPEN) {
-        ws.send(JSON.stringify({ type: 'PRESENTATION_CONNECTED' }));
-        // Ask presentation to send current state
-        presentationWs.send(JSON.stringify({ type: 'REQUEST_STATE' }));
+    // ── Role registration ──────────────────────────────────────────
+    if (msg.type === 'HELLO') {
+      if (msg.role === 'presentation') {
+        ws.role = 'presentation';
+        presentationWs = ws;
+        console.log(`[relay] Presentation registered (${remoteIp})`);
+        // Tell all waiting controllers that presentation is live
+        broadcastToControllers({ type: 'PRESENTATION_CONNECTED' });
+        return;
       }
-      return;
+
+      if (msg.role === 'controller') {
+        ws.role = 'controller';
+        controllerClients.add(ws);
+        console.log(`[relay] Controller registered (${remoteIp}) — ${controllerClients.size} total`);
+
+        if (presentationWs) {
+          // Tell this controller presentation is already live
+          sendTo(ws, { type: 'PRESENTATION_CONNECTED' });
+          // Ask presentation to broadcast its current state so controller syncs up
+          sendTo(presentationWs, { type: 'REQUEST_STATE' });
+          // Tell presentation a new controller joined
+          sendTo(presentationWs, { type: 'CONTROLLER_CONNECTED', count: controllerClients.size });
+        }
+        return;
+      }
     }
 
-    // Ping/pong
+    // ── Ping/Pong keepalive ────────────────────────────────────────
     if (msg.type === 'PING') {
-      ws.send(JSON.stringify({ type: 'PONG' }));
+      sendTo(ws, { type: 'PONG' });
+      return;
+    }
+    if (msg.type === 'PONG') {
+      ws.isAlive = true;
       return;
     }
 
-    // Route: presentation → broadcast to all controllers
-    if (ws.role === 'presentation') {
-      broadcast(controllerClients, rawData.toString());
+    // ── Route: controller → presentation ──────────────────────────
+    // CMD_* messages (phase, theme, intensity, volume, attributes, voice, etc.)
+    if (ws.role === 'controller' && presentationWs) {
+      sendTo(presentationWs, rawData.toString());
+      return;
     }
 
-    // Route: controller → forward to presentation
-    if (ws.role === 'controller' && presentationWs && presentationWs.readyState === presentationWs.OPEN) {
-      presentationWs.send(rawData.toString());
+    // ── Route: presentation → all controllers ─────────────────────
+    // STATE broadcasts and other presentation→controller messages
+    if (ws.role === 'presentation') {
+      broadcastToControllers(rawData.toString());
+      return;
     }
   });
 
   ws.on('close', () => {
     if (ws.role === 'presentation') {
       presentationWs = null;
-      console.log('[relay] Presentation phone disconnected');
-      broadcast(controllerClients, { type: 'PRESENTATION_DISCONNECTED' });
+      console.log('[relay] Presentation disconnected');
+      broadcastToControllers({ type: 'PRESENTATION_DISCONNECTED' });
     } else if (ws.role === 'controller') {
       controllerClients.delete(ws);
-      console.log('[relay] Controller phone disconnected');
+      console.log(`[relay] Controller disconnected — ${controllerClients.size} remaining`);
+      // Notify presentation of updated controller count
+      if (presentationWs) {
+        sendTo(presentationWs, { type: 'CONTROLLER_DISCONNECTED', count: controllerClients.size });
+      }
     }
   });
 
-  ws.on('error', () => {});
+  ws.on('error', (err) => {
+    console.error(`[relay] WebSocket error: ${err.message}`);
+  });
 });
+
+// Server-side ping to detect dead connections
+const pingInterval = setInterval(() => {
+  wss.clients.forEach(ws => {
+    if (!ws.isAlive) { ws.terminate(); return; }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 30000);
+
+wss.on('close', () => clearInterval(pingInterval));
 
 server.listen(PORT, '0.0.0.0', () => {
   const interfaces = os.networkInterfaces();
   const ips = Object.values(interfaces)
     .flat()
-    .filter(i => i.family === 'IPv4' && !i.internal)
+    .filter(i => i && i.family === 'IPv4' && !i.internal)
     .map(i => i.address);
 
-  console.log(`\n🌐 Atmosphere Relay Server running on port ${PORT}`);
-  console.log('\nConnect your phones to:');
+  console.log(`\nAtmosphere Relay Server — port ${PORT}`);
+  console.log('\nSet relay URL in both phones to:');
   ips.forEach(ip => console.log(`  ws://${ip}:${PORT}`));
-  console.log('\nHealth check: http://<ip>:' + PORT + '/health\n');
+  if (ips.length === 0) console.log('  ws://localhost:' + PORT);
+  console.log('\nHealth: http://<ip>:' + PORT + '/health\n');
 });
